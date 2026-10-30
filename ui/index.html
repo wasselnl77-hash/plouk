@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plouk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="booting is-empty">
+  <canvas id="ambient"></canvas>
+
+  <header class="titlebar" data-tauri-drag-region>
+    <nav class="menubar" id="menubar">
+      <span class="menu-pill"></span>
+      <button class="menu-title brand" data-menu="plouk"><span class="wm-disc"></span>Plouk</button>
+      <button class="menu-title" data-menu="playback">Playback</button>
+      <button class="menu-title" data-menu="view">View</button>
+      <button class="menu-title" data-menu="help">Help</button>
+    </nav>
+    <div class="title-drag" data-tauri-drag-region></div>
+    <button class="opt-btn" id="optBtn" aria-label="Options">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" /><path d="M12 2.8v2.4M12 18.8v2.4M21.2 12h-2.4M5.2 12H2.8M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7M18.5 18.5l-1.7-1.7M7.2 7.2 5.5 5.5" /></svg>
+      <span>Options</span>
+    </button>
+    <div class="win-controls">
+      <button class="win-btn" data-win="min" aria-label="Minimize">
+        <svg viewBox="0 0 12 12"><path d="M2.5 6h7" /></svg>
+      </button>
+      <button class="win-btn" data-win="max" aria-label="Maximize">
+        <svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7" rx="1.6" /></svg>
+      </button>
+      <button class="win-btn close" data-win="close" aria-label="Close to tray">
+        <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+      </button>
+    </div>
+  </header>
+  <div class="dropdown glass" id="dropdown" role="menu"></div>
+
+  <!-- Library: one sleeve per playlist you have dropped in -->
+  <aside class="sidebar glass" id="sidebar">
+    <div class="side-head">
+      <svg viewBox="0 0 24 24" class="side-icon"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2.4" /><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5" /></svg>
+      <span class="side-label">Library</span>
+    </div>
+    <div class="shelf" id="shelf"></div>
+    <button class="add-btn" id="addBtn" aria-label="Paste a Spotify link">
+      <span class="add-plus"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg></span>
+      <span class="side-label">Paste a link</span>
+    </button>
+  </aside>
+
+  <main class="stage" id="stage">
+    <div class="deck" id="deck">
+      <div class="halo"></div>
+      <div class="platter">
+        <div class="mat"></div>
+        <div class="record-slot" id="recordSlot">
+          <div class="record" id="record">
+            <div class="grooves"></div>
+            <div class="label" id="label"></div>
+          </div>
+        </div>
+        <div class="sheen"></div>
+        <div class="loading-ring"></div>
+        <div class="spindle"></div>
+      </div>
+      <div class="sleeve" id="sleeve"><div class="sleeve-art"></div></div>
+
+      <svg class="tonearm" viewBox="0 0 1000 1000" aria-hidden="true">
+        <defs>
+          <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#5d5d66" />
+            <stop offset=".42" stop-color="#f1f1f5" />
+            <stop offset=".6" stop-color="#9a9aa4" />
+            <stop offset="1" stop-color="#34343a" />
+          </linearGradient>
+          <linearGradient id="metalDark" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#26262c" />
+            <stop offset=".45" stop-color="#6c6c76" />
+            <stop offset="1" stop-color="#1b1b20" />
+          </linearGradient>
+          <radialGradient id="baseGrad" cx=".4" cy=".35" r=".75">
+            <stop offset="0" stop-color="#3a3a43" />
+            <stop offset="1" stop-color="#121216" />
+          </radialGradient>
+          <filter id="armBlur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="9" />
+          </filter>
+        </defs>
+
+        <circle id="armRest" r="15" class="arm-rest" />
+        <circle cx="960" cy="110" r="80" fill="url(#baseGrad)" stroke="rgba(255,255,255,.08)" stroke-width="2" />
+        <circle cx="960" cy="110" r="58" fill="#0d0d10" stroke="rgba(255,255,255,.05)" stroke-width="2" />
+
+        <g id="armShadow" filter="url(#armBlur)" fill="#000">
+          <rect x="-30" y="-150" width="60" height="74" rx="14" />
+          <rect x="-7" y="-10" width="14" height="650" rx="7" />
+          <g transform="translate(0 640) rotate(22)"><path d="M-10 -8 L10 -8 L28 132 L-28 132 Z" /></g>
+        </g>
+
+        <g id="arm">
+          <rect x="-31" y="-152" width="62" height="76" rx="15" fill="url(#metalDark)" stroke="rgba(255,255,255,.12)" stroke-width="2" />
+          <rect x="-31" y="-118" width="62" height="5" fill="rgba(255,255,255,.12)" />
+          <rect x="-6" y="-80" width="12" height="80" fill="url(#metal)" />
+          <rect x="-7" y="0" width="14" height="646" rx="7" fill="url(#metal)" />
+          <g transform="translate(0 640) rotate(22)">
+            <path d="M-11 -10 L11 -10 L27 120 Q27 132 15 132 L-15 132 Q-27 132 -27 120 Z" fill="url(#metalDark)" stroke="rgba(255,255,255,.14)" stroke-width="2" />
+            <path d="M24 34 L64 22" stroke="url(#metal)" stroke-width="7" stroke-linecap="round" />
+            <rect x="-21" y="76" width="42" height="50" rx="6" fill="#0c0c0f" />
+            <rect x="-21" y="76" width="42" height="7" rx="3" class="arm-accent" />
+            <circle cx="0" cy="128" r="3.5" fill="#d8d8de" />
+          </g>
+          <circle r="34" fill="url(#metal)" stroke="rgba(0,0,0,.4)" stroke-width="2" />
+          <circle r="14" fill="#141418" />
+          <path class="arm-hit" d="M0 -10 L0 640 L-48 760" />
+        </g>
+      </svg>
+      <div class="arm-bubble" id="armBubble">0:00</div>
+    </div>
+
+    <div class="meta">
+      <h1 class="title" id="title"></h1>
+      <div class="sub" id="sub"></div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="progress" id="progress">
+      <span class="time" id="tCur">0:00</span>
+      <div class="bar" id="bar"><div class="bar-fill" id="barFill"></div><div class="bar-knob" id="barKnob"></div></div>
+      <span class="time end" id="tDur">0:00</span>
+    </div>
+
+    <div class="transport">
+      <div class="vol">
+        <button class="ctl small" id="muteBtn" aria-label="Mute">
+          <svg viewBox="0 0 24 24" class="vol-ico"><path class="spk" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" /><path class="w1" d="M15.5 9.2a4 4 0 0 1 0 5.6" /><path class="w2" d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8" /></svg>
+        </button>
+        <div class="vol-bar bar" id="volBar"><div class="bar-fill" id="volFill"></div><div class="bar-knob" id="volKnob"></div></div>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="prevBtn" aria-label="Previous">
+          <svg viewBox="0 0 24 24"><path d="M6.5 5.5v13" /><path d="M18.5 6.4v11.2a.9.9 0 0 1-1.38.76L9.2 13.2a1.4 1.4 0 0 1 0-2.4l7.92-5.16a.9.9 0 0 1 1.38.76z" class="fill" /></svg>
+        </button>
+        <button class="ctl play" id="playBtn" aria-label="Play">
+          <span class="pp"><i></i><i></i></span>
+        </button>
+        <button class="ctl" id="nextBtn" aria-label="Next">
+          <svg viewBox="0 0 24 24"><path d="M17.5 5.5v13" /><path d="M5.5 6.4v11.2a.9.9 0 0 0 1.38.76l7.92-5.16a1.4 1.4 0 0 0 0-2.4L6.88 5.64a.9.9 0 0 0-1.38.76z" class="fill" /></svg>
+        </button>
+      </div>
+      <div class="xf-wrap">
+        <button class="chip" id="xfBtn" aria-label="Crossfade">
+          <svg viewBox="0 0 24 24"><path d="M3 7c6 0 6 10 12 10h6M3 17c6 0 6-10 12-10h6" /></svg>
+          <span id="xfLabel">6s</span>
+        </button>
+        <div class="popover glass" id="xfPop">
+          <div class="pop-row"><span>Crossfade</span><b id="xfValue">6 s</b></div>
+          <input type="range" id="xfRange" min="0" max="12" step="1" value="6">
+          <div class="pop-hint">Blend the end of each song into the next.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section class="panel glass" id="panel">
+    <div class="tabs" id="tabs" data-active="queue" role="tablist">
+      <button class="tab active" data-tab="queue" role="tab">Queue</button>
+      <button class="tab" data-tab="lyrics" role="tab">Lyrics</button>
+      <div class="tab-pill"></div>
+    </div>
+    <div class="views">
+      <div class="view queue-view active" id="queueView">
+        <div class="queue-head" id="queueHead"></div>
+        <div class="queue-list" id="queueList"></div>
+      </div>
+      <div class="view lyrics-view" id="lyricsView">
+        <div class="lyrics-scroll" id="lyrics"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="drop-overlay" id="dropOverlay">
+    <div class="drop-card">
+      <div class="drop-ring"><i></i><i></i><i></i>
+        <svg viewBox="0 0 24 24"><path d="M12 4v12M6.5 11 12 16.5 17.5 11M5 20h14" /></svg>
+      </div>
+      <div class="drop-title">Drop to play</div>
+      <div class="drop-sub">Playlists, albums or songs from Spotify</div>
+    </div>
+  </div>
+  <canvas id="ripples"></canvas>
+  <canvas id="warp"></canvas>
+
+  <!-- Options: the interface warps away and this comes through -->
+  <div class="options" id="options" aria-hidden="true">
+    <div class="opt-card glass" role="dialog" aria-label="Options">
+      <nav class="opt-nav">
+        <div class="opt-nav-title opt-reveal">Options</div>
+        <span class="opt-nav-pill"></span>
+        <button class="opt-tab opt-reveal on" data-sec="playback">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M10.2 8.8v6.4l5-3.2z" /></svg>Playback
+        </button>
+        <button class="opt-tab opt-reveal" data-sec="behavior">
+          <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2.2" /><circle cx="10" cy="17" r="2.2" /></svg>Behavior
+        </button>
+        <button class="opt-tab opt-reveal" data-sec="storage">
+          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="7.5" ry="3" /><path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" /></svg>Storage &amp; engine
+        </button>
+        <button class="opt-tab opt-reveal" data-sec="about">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.2M12 7.6v.2" /></svg>About
+        </button>
+      </nav>
+      <div class="opt-main">
+        <header class="opt-head">
+          <h2 id="optTitle">Playback</h2>
+          <button class="opt-close" id="optClose" aria-label="Close options"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6" /></svg></button>
+        </header>
+        <div class="opt-sections">
+          <section class="opt-section on" data-sec="playback">
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Crossfade</div><div class="opt-desc">Blend the end of each song into the next one.</div></div>
+              <div class="opt-ctl"><input type="range" id="oXf" min="0" max="12" step="1"><span class="opt-value" id="oXfVal">6 s</span></div>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Even out volume</div><div class="opt-desc">Loud and quiet songs play at the same level. Each song is measured once.</div></div>
+              <button class="toggle" id="oNorm" aria-label="Even out volume"></button>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Play when Plouk opens</div><div class="opt-desc">Start the music right away instead of waiting paused where you left off.</div></div>
+              <button class="toggle" id="oAutoplay" aria-label="Play when Plouk opens"></button>
+            </div>
+            <div class="opt-row col">
+              <div class="opt-text"><div class="opt-label">Volume at launch</div><div class="opt-desc">Keep the volume you last used, or always start at a fixed level.</div></div>
+              <div id="oLaunchVol"></div>
+            </div>
+          </section>
+
+          <section class="opt-section" data-sec="behavior">
+            <div class="opt-row col">
+              <div class="opt-text"><div class="opt-label">Close button</div><div class="opt-desc">Hiding keeps the music playing from the tray icon.</div></div>
+              <div id="oClose"></div>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Start Plouk at login</div><div class="opt-desc">Open automatically when you sign in.</div></div>
+              <button class="toggle" id="oAutostart" aria-label="Start Plouk at login"></button>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Start hidden in the tray</div><div class="opt-desc">When starting at login, stay out of the way until you open it.</div></div>
+              <button class="toggle" id="oHidden" aria-label="Start hidden in the tray"></button>
+            </div>
+            <div class="opt-row col">
+              <div class="opt-text"><div class="opt-label">Keyboard shortcuts</div></div>
+              <dl class="shortcut-grid">
+                <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+                <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Seek 5 seconds</dd>
+                <dt><kbd>Shift</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next song</dd>
+                <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
+                <dt><kbd>M</kbd></dt><dd>Mute</dd>
+                <dt><kbd>Q</kbd> <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
+                <dt><kbd>Ctrl</kbd> <kbd>,</kbd></dt><dd>Options</dd>
+                <dt><kbd>F10</kbd></dt><dd>Open the menus</dd>
+                <dt><kbd>Ctrl</kbd> <kbd>L</kbd></dt><dd>Play a Spotify link</dd>
+                <dt><kbd>Ctrl</kbd> <kbd>W</kbd> / <kbd>Q</kbd></dt><dd>Hide to tray / quit</dd>
+              </dl>
+            </div>
+          </section>
+
+          <section class="opt-section" data-sec="storage">
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Song cache</div><div class="opt-desc" id="oCacheDesc">…</div></div>
+              <div class="opt-btns"><button class="btn sm ghost" id="oCacheOpen">Open folder</button><button class="btn sm danger" id="oCacheClear">Clear cache</button></div>
+            </div>
+            <div class="opt-row col">
+              <div class="opt-text"><div class="opt-label">Cache size limit</div><div class="opt-desc">When it's full, the songs you played longest ago make room.</div></div>
+              <div id="oCacheLimit"></div>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Library</div><div class="opt-desc" id="oLibDesc">…</div></div>
+              <button class="btn sm danger" id="oLibClear">Clear library</button>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">YouTube engine</div><div class="opt-desc" id="oEngineDesc">…</div></div>
+              <button class="btn sm ghost" id="oEngineUpdate">Update now</button>
+            </div>
+          </section>
+
+          <section class="opt-section" data-sec="about">
+            <div class="about">
+              <div class="about-disc"></div>
+              <div class="about-name">Plouk</div>
+              <div class="about-version" id="oVersion">Version …</div>
+              <p class="about-text">A dark, minimal vinyl player. Song lists come from Spotify's public pages, audio from YouTube Music through yt-dlp, and synced lyrics from LRCLIB.</p>
+              <div class="about-maker">
+                <span>made by</span>
+                <svg class="ehs-mark" xmlns="http://www.w3.org/2000/svg" viewBox="-12 -4 252 138" role="img" aria-label="EHS studio"><g transform="skewX(-5)"><path fill="currentColor" d="M8 0H18V100H8L0 92V8Z"/><path fill="currentColor" d="M22 0H66V18H22Z"/><path fill="currentColor" d="M22 41H56V59H22Z"/><path fill="currentColor" d="M22 82H66V100H22Z"/><path fill="currentColor" d="M82 0H100V100H82Z"/><path fill="currentColor" d="M134 0H152V100H134Z"/><path fill="currentColor" d="M104 41H130V59H104Z"/><path fill="currentColor" d="M190 0H236V18H190Z"/><path fill="currentColor" d="M168 8L176 0H186V37H168Z"/><path fill="currentColor" d="M168 41H236V59H168Z"/><path fill="currentColor" d="M218 63H236V92L228 100H218Z"/><path fill="currentColor" d="M168 82H214V100H168Z"/><g transform="translate(152.80 128) scale(1.6)"><path d="M8 -10H2Q0 -10 0 -8V-6.8Q0 -5 2 -5H6Q8 -5 8 -3V-2Q8 0 6 0H0M11.5 -14V-2Q11.5 0 13.5 0H15M9.5 -10H15M18 -10V-2Q18 0 20 0H26V-10M37 -14V0H31Q29 0 29 -2V-8Q29 -10 31 -10H37M41 -10V0M44 -8Q44 -10 46 -10H50Q52 -10 52 -8V-2Q52 0 50 0H46Q44 0 44 -2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="40.20" y="-14.40" width="1.60" height="1.60" fill="currentColor"/></g></g></svg>
+                <span class="about-license">© 2026 EHS · MIT License</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="pasteModal">
+    <form class="modal-card glass" id="pasteForm">
+      <div class="modal-title">Play from a link</div>
+      <div class="modal-sub">Paste a Spotify playlist, album or song link.</div>
+      <input id="pasteInput" type="text" placeholder="https://open.spotify.com/playlist/…" autocomplete="off" spellcheck="false">
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="pasteCancel">Cancel</button>
+        <button type="submit" class="btn">Play</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal" id="helpModal">
+    <div class="modal-card glass help">
+      <div class="modal-title">Shortcuts</div>
+      <dl>
+        <dt><kbd>Space</kbd></dt><dd>Play / pause</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Seek 5 seconds</dd>
+        <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next song</dd>
+        <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
+        <dt><kbd>M</kbd></dt><dd>Mute</dd>
+        <dt><kbd>Q</kbd> / <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>V</kbd></dt><dd>Play a pasted Spotify link</dd>
+        <dt><kbd>Ctrl</kbd> + <kbd>,</kbd></dt><dd>Options</dd>
+        <dt><kbd>F10</kbd></dt><dd>Open the menus</dd>
+        <dt><kbd>?</kbd></dt><dd>This sheet</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

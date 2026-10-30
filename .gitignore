@@ -1,0 +1,14 @@
+# Rust / Tauri build output
+target/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Local builds (published as GitHub release assets instead)
+dist/
+
+# Editor and tool settings
+.claude/
+.vscode/
+.idea/
+*.swp
+.DS_Store
