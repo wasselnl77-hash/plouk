@@ -6,6 +6,11 @@ authors = ["EHS"]
 license = "MIT"
 edition = "2021"
 
+[features]
+# Production build (embedded assets served over Tauri's custom protocol).
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
