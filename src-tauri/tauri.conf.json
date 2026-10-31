@@ -33,7 +33,7 @@
       "deb",
       "appimage"
     ],
-    "category": "Audio",
+    "category": "Music",
     "shortDescription": "A dark, minimal vinyl music player",
     "icon": [
       "icons/32x32.png",

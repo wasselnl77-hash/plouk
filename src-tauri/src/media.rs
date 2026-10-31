@@ -8,6 +8,8 @@ use tauri::AppHandle;
 pub enum MediaCmd {
     Meta { title: String, artist: String, album: String, cover: Option<String>, duration: f64 },
     Playback { playing: bool, pos: f64 },
+    /// Only MPRIS shows a volume; elsewhere it's dropped.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Volume(f64),
 }
 
