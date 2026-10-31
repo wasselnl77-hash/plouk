@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.plouk" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">#050507</item>
+        <!-- Customize your theme here. -->
+    </style>
+</resources>

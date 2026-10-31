@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.plouk" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Plouk is dark everywhere; no white flash while the page loads. -->
+        <item name="android:windowBackground">#050507</item>
+    </style>
+</resources>

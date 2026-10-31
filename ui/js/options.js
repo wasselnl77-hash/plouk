@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   autoplay: false,
   launchVolume: 'last',
   closeAction: 'tray',
+  startHidden: false,
   cacheLimitGB: 5,
 };
 
@@ -118,26 +119,16 @@ export class Options {
       S.settings.closeAction,
       (v) => ctx.setSetting('closeAction', v)
     );
-    const setAutostart = async () => {
-      const enabled = this.autostart.on;
-      const hidden = this.hidden.on;
+    this.autostartToggle = toggle($('oAutostart'), false, async (enabled) => {
       $('oHidden').disabled = !enabled;
       try {
-        await ctx.invoke('set_autostart', { enabled, hidden });
+        await ctx.invoke('set_autostart', { enabled });
       } catch (e) {
         ctx.toast(`Couldn't change start at login: ${e}`, 'error');
+        this.autostartToggle.set(!enabled);
       }
-    };
-    this.autostart = { on: false };
-    this.hidden = { on: false };
-    this.autostartToggle = toggle($('oAutostart'), false, (v) => {
-      this.autostart.on = v;
-      setAutostart();
     });
-    this.hiddenToggle = toggle($('oHidden'), false, (v) => {
-      this.hidden.on = v;
-      setAutostart();
-    });
+    this.hiddenToggle = toggle($('oHidden'), S.settings.startHidden, (v) => ctx.setSetting('startHidden', v));
 
     // Storage & engine
     this.cacheLimit = segmented(
@@ -209,18 +200,18 @@ export class Options {
     this.refreshLibrary();
     try {
       const a = await this.ctx.invoke('autostart_state');
-      this.autostart.on = !!a?.enabled;
-      this.hidden.on = !!a?.hidden;
-      this.autostartToggle.set(this.autostart.on);
-      this.hiddenToggle.set(this.hidden.on);
-      this.$('oHidden').disabled = !this.autostart.on;
+      this.autostartToggle.set(!!a?.enabled);
+      this.hiddenToggle.set(!!S.settings.startHidden);
+      this.$('oHidden').disabled = !a?.enabled;
     } catch {}
     try {
       const info = await this.ctx.invoke('app_info');
       this.$('oVersion').textContent = `Version ${info.version}`;
       const engine = info.engine;
       this.$('oEngineDesc').textContent =
-        engine?.state === 'ready' ? `yt-dlp ${engine.version}` : engine?.state === 'failed' ? engine.message : 'Setting up…';
+        engine?.state === 'ready'
+          ? engine.version === 'NewPipe' ? 'NewPipe extractor, built in and updated with Plouk' : `yt-dlp ${engine.version}`
+          : engine?.state === 'failed' ? engine.message : 'Setting up…';
     } catch {}
   }
 

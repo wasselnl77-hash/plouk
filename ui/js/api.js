@@ -152,6 +152,8 @@ async function mockInvoke(cmd, args = {}) {
       return 'mock';
     case 'launch_hidden':
       return false;
+    case 'platform':
+      return location.search.includes('mobile') ? { os: 'android', mobile: true } : null;
     default:
       return null;
   }

@@ -1,0 +1,14 @@
+# NewPipe's extractor and its JavaScript engine (Rhino) use reflection.
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-keep class com.grack.nanojson.** { *; }
+-keep class org.jsoup.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn org.mozilla.classfile.**
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
+-dontwarn org.jspecify.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.slf4j.**

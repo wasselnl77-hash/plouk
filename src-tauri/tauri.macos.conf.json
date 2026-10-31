@@ -1,0 +1,27 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Plouk",
+        "width": 1320,
+        "height": 820,
+        "minWidth": 1000,
+        "minHeight": 660,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": false,
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

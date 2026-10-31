@@ -1,6 +1,6 @@
 [package]
 name = "plouk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Plouk — a dark, minimal vinyl music player. Drop a Spotify playlist in and it plays."
 authors = ["EHS"]
 license = "MIT"
@@ -14,9 +14,12 @@ custom-protocol = ["tauri/custom-protocol"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[lib]
+name = "plouk_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
-tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["process", "sync", "time", "fs", "io-util", "macros"] }
@@ -25,7 +28,12 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 urlencoding = "2"
 rodio = { version = "0.20", default-features = false }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "isomp4", "mp3", "flac", "vorbis", "ogg", "wav", "pcm"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
 souvlaki = "0.9"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"

@@ -12,6 +12,11 @@ import { Warp } from './warp.js';
 const $ = (id) => document.getElementById(id);
 const app = $('app');
 
+// Platform: set once at boot (desktop Linux in the browser design preview).
+const PLAT = { os: 'linux', mobile: false };
+const isMac = () => PLAT.os === 'macos';
+const MOD = () => (isMac() ? '⌘' : 'Ctrl ');
+
 // ------------------------------------------------------------------ state
 
 const S = {
@@ -93,7 +98,7 @@ function clearLibrary() {
 
 function hideToTray() {
   save(0);
-  appWindow?.hide();
+  if (!PLAT.mobile) appWindow?.hide();
 }
 
 function quit() {
@@ -139,11 +144,11 @@ const menubar = new MenuBar($('menubar'), $('dropdown'), () => {
     {
       id: 'plouk',
       items: [
-        { label: 'Options…', kbd: 'Ctrl ,', action: () => options.open() },
-        { label: 'Play a Spotify link…', kbd: 'Ctrl L', action: () => openModal('pasteModal') },
+        { label: 'Options…', kbd: `${MOD()},`, action: () => options.open() },
+        { label: 'Play a Spotify link…', kbd: `${MOD()}L`, action: () => openModal('pasteModal') },
         '-',
-        { label: 'Hide to tray', kbd: 'Ctrl W', action: hideToTray },
-        { label: 'Quit Plouk', kbd: 'Ctrl Q', action: quit },
+        { label: 'Hide to tray', kbd: `${MOD()}W`, action: hideToTray },
+        { label: 'Quit Plouk', kbd: `${MOD()}Q`, action: quit },
       ],
     },
     {
@@ -173,9 +178,13 @@ const menubar = new MenuBar($('menubar'), $('dropdown'), () => {
       items: [
         { label: 'Queue', kbd: 'Q', checked: S.tab === 'queue', action: () => setTab('queue') },
         { label: 'Lyrics', kbd: 'L', checked: S.tab === 'lyrics', action: () => setTab('lyrics') },
-        '-',
-        { label: app.classList.contains('maximized') ? 'Restore window' : 'Maximize window', action: () => appWindow?.toggleMaximize() },
-        { label: 'Minimize', action: () => appWindow?.minimize() },
+        ...(PLAT.mobile
+          ? []
+          : [
+              '-',
+              { label: app.classList.contains('maximized') ? 'Restore window' : 'Maximize window', action: () => appWindow?.toggleMaximize() },
+              { label: 'Minimize', action: () => appWindow?.minimize() },
+            ]),
       ],
     },
     {
@@ -603,6 +612,12 @@ let lastLevel = 0;
 let lastSave = 0;
 
 listen('audio', ({ payload: e }) => {
+  if (!deck && e.playing && currentTrack()) {
+    deck = e.deck;
+    tt.setPlaying(true);
+    tt.lower();
+    setPlayingUI(true);
+  }
   if (e.deck !== deck) return;
   pos = e.pos;
   if (e.dur > 1) duration = e.dur;
@@ -773,8 +788,10 @@ async function loadFromText(text, point) {
 
 function showEmpty() {
   app.classList.add('is-empty');
-  setTitle('Drop a Spotify playlist');
-  $('sub').textContent = 'Drag it straight out of the Spotify app, or paste a link with Ctrl+V';
+  setTitle(PLAT.mobile ? 'Share a Spotify playlist' : 'Drop a Spotify playlist');
+  $('sub').textContent = PLAT.mobile
+    ? 'In Spotify, tap Share → Plouk, or tap + to paste a link'
+    : `Drag it straight out of the Spotify app, or paste a link with ${MOD()}V`;
   showProgress(0, 0);
   applyPalette(null);
   app.style.setProperty('--accent', `rgb(${DEFAULT_PALETTE.accent.join(',')})`);
@@ -997,7 +1014,7 @@ document.querySelectorAll('.win-btn').forEach((b) =>
   })
 );
 async function syncMaximized() {
-  if (appWindow) app.classList.toggle('maximized', await appWindow.isMaximized().catch(() => false));
+  if (appWindow && !PLAT.mobile) app.classList.toggle('maximized', await appWindow.isMaximized().catch(() => false));
 }
 window.addEventListener('resize', () => {
   syncMaximized();
@@ -1005,9 +1022,47 @@ window.addEventListener('resize', () => {
 });
 window.addEventListener('beforeunload', () => save(0));
 
+// ------------------------------------------------------------------ phone bottom sheet
+
+function setupSheet() {
+  const panel = $('panel');
+  const handle = panel.querySelector('.sheet-handle');
+  const setOpen = (on) => panel.classList.toggle('expanded', on);
+  handle.addEventListener('click', () => setOpen(!panel.classList.contains('expanded')));
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setOpen(true)));
+  // Drag the handle to pull the sheet up or push it down.
+  let startY = 0, dy = 0, dragging = false;
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    startY = e.clientY;
+    dy = 0;
+    handle.setPointerCapture(e.pointerId);
+    panel.classList.add('dragging');
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    dy = e.clientY - startY;
+    panel.style.setProperty('--drag', `${dy}px`);
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    panel.classList.remove('dragging');
+    panel.style.removeProperty('--drag');
+    if (Math.abs(dy) > 40) setOpen(dy < 0);
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+
 // ------------------------------------------------------------------ boot
 
 async function boot() {
+  Object.assign(PLAT, (await invoke('platform').catch(() => null)) || {});
+  app.classList.add(`os-${PLAT.os}`);
+  app.classList.toggle('mobile', !!PLAT.mobile);
+  if (isMac()) document.querySelectorAll('kbd').forEach((k) => k.textContent === 'Ctrl' && (k.textContent = '⌘'));
+  if (PLAT.mobile) setupSheet();
   const saved = await invoke('load_state').catch(() => null);
   if (saved && saved.v === 1) Object.assign(S, saved, { muted: false });
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };
@@ -1046,10 +1101,10 @@ async function boot() {
     .then((uri) => uri && setTimeout(() => loadFromText(uri, { x: innerWidth / 2, y: innerHeight / 2 }), 900))
     .catch(() => {});
 
-  const hidden = await invoke('launch_hidden').catch(() => false);
+  const hidden = (await invoke('launch_hidden').catch(() => false)) && S.settings.startHidden;
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
-      if (!hidden) appWindow?.show();
+      if (!hidden && !PLAT.mobile) appWindow?.show();
       app.classList.remove('booting');
       setTimeout(() => app.classList.add('ready'), 1400);
     })

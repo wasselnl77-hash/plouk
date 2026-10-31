@@ -8,8 +8,8 @@
 <h1 align="center">Plouk</h1>
 
 <p align="center">
-  A little record player for your Linux desktop.<br>
-  Drag a playlist out of Spotify, drop it on the window, and it plays.
+  A little record player for Linux, macOS and Android.<br>
+  Drag a playlist out of Spotify (or share it to Plouk on your phone), and it plays.
 </p>
 
 <p align="center">
@@ -26,7 +26,8 @@ So that's what it is. A turntable, a queue, and not much else.
 
 - **Drop anything from Spotify.** Playlists, albums, one song or a handful of
   them. Drag them straight out of the Spotify app, paste a link, or run
-  `plouk <link>`. You don't need a Spotify account or an API key.
+  `plouk <link>`. On your phone, tap Share → Plouk. You don't need a Spotify
+  account or an API key.
 - **It behaves like a turntable.** The tonearm is the progress bar. It creeps
   inward as the song plays, and you can grab it to seek. Changing songs swaps
   the record: the arm lifts, the old record slides away, the new one comes out
@@ -55,39 +56,64 @@ for a settings screen and we're not sorry.
   <img src="docs/screenshots/first-launch.png" alt="Plouk on first launch, waiting for a playlist" width="49%">
 </p>
 
+## On your phone
+
+On Android you share instead of drag. In Spotify, open a playlist, album or
+song, tap Share and pick Plouk. It keeps playing with the screen off, shows up
+on the lock screen and in the notification shade, and the buttons on your
+headphones work. Your queue and the lyrics live in a sheet you pull up from
+the bottom. On a tablet you get the full layout.
+
+<p align="center">
+  <img src="docs/screenshots/android.png" alt="Plouk playing on an Android phone" width="270">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/android-controls.png" alt="Plouk's controls in the Android notification shade" width="270">
+</p>
+
 ## Getting it
 
-Grab the latest build from the [releases page](../../releases), unpack it and
-run the installer:
+Everything is on the [releases page](../../releases).
+
+**Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-tar xzf plouk-0.1.0-linux-x86_64.tar.gz
-cd plouk-0.1.0
-./install.sh
+sudo apt install ./plouk-0.2.0-linux-amd64.deb
 ```
 
-That puts Plouk in your app menu. If you'd rather not install anything, run
-`./dist/plouk` from the same folder.
+Anywhere else, the `.AppImage` works too: make it executable and run it.
 
-Plouk needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`), which most recent distros
-already have. The tray icon uses `libayatana-appindicator3-1`.
+**macOS.** Open the `.dmg` and drag Plouk into Applications. It runs on Apple
+Silicon and Intel Macs with macOS 11 or newer. We don't have an Apple
+developer account yet, so the app isn't signed. The first time, right-click
+Plouk in Applications and choose Open. If macOS still refuses, go to System
+Settings → Privacy & Security and click Open Anyway.
 
-The first time you play something, Plouk downloads its own copy of
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) (about 40 MB) from the official
-releases and keeps it up to date by itself.
+**Android.** Download the `.apk` on your phone and open it. Android asks you
+to allow installs from your browser or files app; allow it once and you're
+set. You need Android 8 or newer.
+
+On a computer, the first song you play makes Plouk download its own copy of
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) (about 40 MB), plus
+[Deno](https://deno.com) if you don't already have Node or Deno installed.
+On Android there's nothing extra to download.
 
 ## How it works
 
 A drag out of Spotify only carries links, never audio. Plouk reads the song
-list from Spotify's public embed page, finds each song on YouTube Music with
-yt-dlp, and plays just the audio stream, so there are no ads. Songs are kept
-after the first play, and the next two get fetched ahead of time, so skipping
-is instant.
+list from Spotify's public embed page and then finds each song on YouTube
+Music. On computers that's done with yt-dlp. On Android, where apps can't run
+programs like that, it uses the
+[NewPipe extractor](https://github.com/TeamNewPipe/NewPipeExtractor), the
+library behind the NewPipe app. Either way only the audio stream gets
+fetched, so there are no ads. Songs are kept after the first play, and the
+next two get fetched ahead of time, so skipping is instant.
 
 It's written in Rust with [Tauri](https://tauri.app). The audio engine
 (decoding, crossfades, loudness), the Spotify and YouTube parts and the system
-integration live in `src-tauri/src`. The interface is plain HTML, CSS and
-JavaScript with no build step, in `ui/`.
+integration live in `src-tauri/src`. The Android bits (NewPipe, the media
+notification, sharing) are a small Kotlin plugin in
+`src-tauri/gen/android/app/src/main/java/com/plouk/player`. The interface is
+plain HTML, CSS and JavaScript with no build step, in `ui/`.
 
 ## Keyboard
 
@@ -104,12 +130,16 @@ JavaScript with no build step, in `ui/`.
 | F10 | Open the menus |
 | Ctrl + W / Ctrl + Q | Hide to tray / quit |
 
+On a Mac, use ⌘ instead of Ctrl.
+
 ## Good to know
 
 - Spotify's public page only shows the first 100 songs of a playlist, and
   private playlists can't be read.
-- We build and test Plouk on Linux Mint (Cinnamon, X11). Other desktops should
-  be fine. On Wayland the options animation falls back to a simpler version.
+- We build and test Plouk on Linux Mint (Cinnamon, X11) and on Android, phone
+  and tablet sizes. The Mac version is built on GitHub's Macs, but we haven't
+  had a real Mac to try it on yet. If something's off there, tell us.
+- On Wayland the options animation falls back to a simpler version.
 - The matching usually lands on the official audio, but now and then a live
   version sneaks in.
 - Plouk is for listening at home. If you love an artist, go support them where
@@ -117,20 +147,30 @@ JavaScript with no build step, in `ui/`.
 
 ## Building it yourself
 
-You'll need Rust and the usual Tauri libraries for Linux (webkit2gtk-4.1,
-libayatana-appindicator3, plus the ALSA and D-Bus dev packages).
+You'll need Rust and the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+for your system, plus the Tauri CLI:
 
 ```bash
-cd src-tauri
-cargo build --release
+cargo install tauri-cli --version "^2" --locked
+cargo tauri build
 ```
 
-The binary ends up in `src-tauri/target/release/plouk`. Copy it to
-`dist/plouk` and `./install.sh` will pick it up.
+That gives you a `.deb` and an `.AppImage` on Linux, or a `.app` and a `.dmg`
+on a Mac. On Linux you can also copy `src-tauri/target/release/plouk` to
+`dist/plouk` and run `./install.sh` to put it in your app menu.
+
+For Android you'll also need the Android SDK, the NDK and Java 17 or newer:
+
+```bash
+cargo tauri android build --apk
+```
+
+Releases build themselves: pushing a `v*` tag makes GitHub Actions build the
+Linux, Mac and Android versions and attach them to the release.
 
 Want to fiddle with the design without the backend? Serve `ui/` with any
 static file server and open it in a browser. It falls back to a fake player
-with a few demo songs.
+with a few demo songs. Add `?mobile` to the address to see the phone layout.
 
 ## License
 
