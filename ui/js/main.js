@@ -1064,6 +1064,10 @@ async function boot() {
   if (isMac()) document.querySelectorAll('kbd').forEach((k) => k.textContent === 'Ctrl' && (k.textContent = '⌘'));
   if (PLAT.mobile) setupSheet();
   warp.simple = !!PLAT.mobile; // phones flicker under the warp, so the options just fade there
+  if (PLAT.mobile) {
+    ambient.lite = true;
+    ambient.resize();
+  }
   const saved = await invoke('load_state').catch(() => null);
   if (saved && saved.v === 1) Object.assign(S, saved, { muted: false });
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };

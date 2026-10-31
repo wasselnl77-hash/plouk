@@ -77,7 +77,7 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.2.1-linux-amd64.deb
+sudo apt install ./plouk-0.2.2-linux-amd64.deb
 ```
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.

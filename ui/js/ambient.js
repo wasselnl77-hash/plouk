@@ -172,10 +172,13 @@ export class Ambient {
     const w = this.bg.clientWidth || window.innerWidth;
     const h = this.bg.clientHeight || window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
-    this.bg.width = Math.max(2, Math.round(w * 0.5));
-    this.bg.height = Math.max(2, Math.round(h * 0.5));
-    this.fx.width = Math.max(2, Math.round(w * Math.min(dpr, 1.5)));
-    this.fx.height = Math.max(2, Math.round(h * Math.min(dpr, 1.5)));
+    // Phones (lite) draw the soft glow much smaller; it's blurry anyway and their GPUs are not.
+    const bgScale = this.lite ? 0.25 : 0.5;
+    const fxScale = this.lite ? 1 : Math.min(dpr, 1.5);
+    this.bg.width = Math.max(2, Math.round(w * bgScale));
+    this.bg.height = Math.max(2, Math.round(h * bgScale));
+    this.fx.width = Math.max(2, Math.round(w * fxScale));
+    this.fx.height = Math.max(2, Math.round(h * fxScale));
     this.w = w;
     this.h = h;
   }
@@ -211,7 +214,7 @@ export class Ambient {
     const now = this.time();
     const active = this.ripples.length > 0 || this.drag > 0.01 || this.dragTarget > 0;
     // The glow moves slowly; 30 fps is plenty unless ripples are running.
-    if (!active && this.frame % 2) return;
+    if (!active && this.frame % (this.lite ? 3 : 2)) return;
 
     const k = Math.min(1, (performance.now() - this.mixStart) / 1800);
     const e = k * k * (3 - 2 * k);
