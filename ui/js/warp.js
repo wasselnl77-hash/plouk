@@ -172,8 +172,8 @@ export class Warp {
   }
 
   async open(card, reveal = []) {
-    if (reduced.matches) {
-      card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, fill: 'forwards' });
+    if (this.simple || reduced.matches) {
+      card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out', fill: 'forwards' });
       return;
     }
     this.mode = (await this.snapshot()) ? 'gpu' : 'css';
@@ -210,6 +210,9 @@ export class Warp {
   }
 
   async close(card) {
+    if (this.simple) {
+      return card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
+    }
     this.emerge?.cancel();
     const away = card.animate(
       [
