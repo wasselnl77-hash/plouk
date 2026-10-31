@@ -114,8 +114,12 @@ jobs:
             echo "keyAlias=$ANDROID_KEY_ALIAS"
           } > src-tauri/gen/android/keystore.properties
 
+      # Gradle calls back into `cargo tauri` (see gen/android/buildSrc), so use the cargo CLI here.
+      - name: Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
       - name: Build
-        run: npx --yes @tauri-apps/cli@2 android build --apk --target aarch64 armv7 x86_64
+        run: cargo tauri android build --apk --target aarch64 armv7 x86_64
 
       - name: Collect files
         run: |

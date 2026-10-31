@@ -28,6 +28,7 @@ pub const AUDIO_EXTS: [&str; 7] = ["m4a", "mp3", "mp4", "aac", "flac", "ogg", "w
 
 #[derive(Clone, Serialize, PartialEq)]
 #[serde(tag = "state", rename_all = "camelCase")]
+#[cfg_attr(mobile, allow(dead_code))] // NewPipe ships with the app, so only yt-dlp downloads or fails
 pub enum EngineState {
     Checking,
     Downloading { progress: f64 },

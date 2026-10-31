@@ -21,6 +21,7 @@ pub struct MediaKey {
 }
 
 impl MediaKey {
+    #[cfg_attr(mobile, allow(dead_code))]
     pub fn new(action: &str) -> Self {
         Self { action: action.into(), value: None, uri: None }
     }
