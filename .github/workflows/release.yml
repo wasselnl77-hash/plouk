@@ -95,6 +95,15 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
+          # Without a key (a fork, or a test run) the APK is left unsigned. A release never is.
+          if [ -z "$ANDROID_KEY_BASE64" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+              echo "::error::The ANDROID_KEY_* secrets are missing, refusing to release an unsigned APK"
+              exit 1
+            fi
+            echo "::warning::No signing key, building an unsigned APK"
+            exit 0
+          fi
           echo "$ANDROID_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/plouk-release.jks"
           {
             echo "storeFile=$RUNNER_TEMP/plouk-release.jks"
@@ -111,7 +120,7 @@ jobs:
         run: |
           mkdir -p out
           VERSION="${GITHUB_REF_NAME#v}"
-          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "out/plouk-${VERSION}-android.apk"
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release*.apk "out/plouk-${VERSION}-android.apk"
           ls -la out
 
       - uses: softprops/action-gh-release@v2
