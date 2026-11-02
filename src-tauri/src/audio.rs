@@ -20,7 +20,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::oneshot;
 
-use crate::{decode::FileSource, loudness};
+use crate::{decode::FileSource, loudness, pitch::Pitch};
 
 const TICK: Duration = Duration::from_millis(10);
 const EMIT_EVERY: Duration = Duration::from_millis(33);
@@ -38,6 +38,8 @@ pub enum Cmd {
     Volume(f32),
     /// Playback rate, like a turntable's pitch control: slower is also lower.
     Rate(f32),
+    /// Pitch shift in semitones, on top of the rate (see pitch.rs).
+    Pitch(f32),
     Normalize(bool),
     Stop,
 }
@@ -251,6 +253,8 @@ struct Audio {
     speed: Ramp,
     /// The user's rate, applied on top of the spin-up/spin-down speed.
     rate: Ramp,
+    /// Shared with every deck's pitch stage.
+    pitch: Arc<AtomicU32>,
     pausing_until: Option<Instant>,
     next_id: u64,
     last_emit: Instant,
@@ -270,6 +274,7 @@ impl Audio {
             transport: Ramp::hold(1.0),
             speed: Ramp::hold(1.0),
             rate: Ramp::hold(1.0),
+            pitch: Arc::new(AtomicU32::new(0f32.to_bits())),
             pausing_until: None,
             next_id: 1,
             last_emit: Instant::now(),
@@ -317,6 +322,7 @@ impl Audio {
                 }
             }
             Cmd::Volume(v) => self.volume = v.clamp(0.0, 1.0),
+            Cmd::Pitch(semitones) => self.pitch.store(semitones.clamp(-24.0, 24.0).to_bits(), Relaxed),
             Cmd::Rate(r) => {
                 self.rate = Ramp::new(self.rate.value(now), r.clamp(0.5, 2.0), Duration::from_millis(250), Shape::Smooth)
             }
@@ -346,7 +352,7 @@ impl Audio {
             .map_err(|_| "Couldn't decode this audio file".to_string())??;
         let duration = decoder.total_duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
         let levels = Arc::new(Levels::default());
-        let source = Meter::new(decoder, levels.clone());
+        let source = Pitch::new(Meter::new(decoder, levels.clone()), self.pitch.clone());
         let sink = Sink::try_new(&handle).map_err(|e| format!("Audio output error: {e}"))?;
         sink.set_volume(0.0);
         sink.append(source);

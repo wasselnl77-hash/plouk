@@ -8,7 +8,7 @@
 <h1 align="center">Plouk</h1>
 
 <p align="center">
-  A little record player for Linux, macOS and Android.<br>
+  A little record player for Windows, macOS, Linux and Android.<br>
   Drag a playlist out of Spotify (or share it to Plouk on your phone), and it plays.
 </p>
 
@@ -38,9 +38,15 @@ So that's what it is. A turntable, a queue, and not much else.
 - **Even volume.** Every song gets measured once and played at the same
   loudness, so a quiet acoustic track and a loud pop single sit nicely next to
   each other.
+- **Play it your way.** Loop a song or the whole playlist, and slow songs down
+  or speed them up while they play, like a turntable's pitch control.
+- **Show it off, if you want.** Plouk can put what you're listening to on your
+  Discord profile and scrobble it to Last.fm. Both are off until you turn
+  them on.
 - **The small stuff you'd expect.** Synced lyrics, crossfade, a shelf with
-  everything you've dropped in, media keys, a tray icon, and it remembers where
-  you left off.
+  everything you've dropped in, media keys, a tray icon, automatic updates,
+  and it remembers where you left off. There's a lite mode for slower
+  computers and phones.
 
 <p align="center">
   <img src="docs/screenshots/options.png" alt="The options panel" width="49%">
@@ -77,10 +83,14 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.2.5-linux-amd64.deb
+sudo apt install ./plouk-0.3.0-linux-amd64.deb
 ```
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
+
+**Windows.** Run `plouk-0.3.0-windows-x64-setup.exe`. The installer isn't
+signed yet, so Windows SmartScreen may warn you: click **More info**, then
+**Run anyway**. Windows 10 and 11 are supported.
 
 **macOS.** Open the `.dmg` and drag Plouk into Applications. It runs on Apple
 Silicon and Intel Macs with macOS 11 or newer. We don't have an Apple
@@ -134,7 +144,7 @@ plain HTML, CSS and JavaScript with no build step, in `ui/`.
 | ↑ ↓ | Volume |
 | M | Mute |
 | R | Loop off / playlist / song |
-| [ / ] / \\ | Slower / faster / normal speed |
+| [ / ] / \\ | Slower / faster / back to normal speed and pitch |
 | Q / L | Queue / lyrics |
 | Ctrl + V | Play a copied Spotify link |
 | Ctrl + , | Options |
@@ -148,8 +158,9 @@ On a Mac, use ⌘ instead of Ctrl.
 - Spotify's public page only shows the first 100 songs of a playlist, and
   private playlists can't be read.
 - We build and test Plouk on Linux Mint (Cinnamon, X11) and on Android, phone
-  and tablet sizes. The Mac version is built on GitHub's Macs, but we haven't
-  had a real Mac to try it on yet. If something's off there, tell us.
+  and tablet sizes. The Windows and Mac versions are built on GitHub's
+  machines, but we haven't had a real Windows PC or Mac to try them on yet.
+  If something's off there, tell us.
 - On Wayland the options animation falls back to a simpler version.
 - The matching usually lands on the official audio, but now and then a live
   version sneaks in.

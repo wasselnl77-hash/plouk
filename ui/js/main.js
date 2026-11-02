@@ -29,6 +29,9 @@ const S = {
   crossfade: 6,
   loop: 'off', // 'off' | 'all' (the playlist) | 'one' (the song)
   rate: 1,
+  pitch: 0, // semitones, on top of the speed
+  keepPitch: false, // cancel out the pitch change that speed brings
+  fxScope: 'playlist', // speed and pitch apply to the 'playlist' or just this 'song'
   tab: 'queue',
   art: {},
   settings: { ...DEFAULT_SETTINGS },
@@ -110,24 +113,69 @@ function setLoop(mode) {
   btn.title = `Loop: ${LOOP_NAMES[S.loop]}`;
   save();
 }
-$('loopBtn').addEventListener('click', () => setLoop(LOOPS[(LOOPS.indexOf(S.loop) + 1) % LOOPS.length]));
+const LOOP_SAY = { off: 'Loop off', all: 'Looping the whole playlist', one: 'Looping this song' };
+$('loopBtn').addEventListener('click', () => {
+  setLoop(LOOPS[(LOOPS.indexOf(S.loop) + 1) % LOOPS.length]);
+  toast(LOOP_SAY[S.loop], 'info', { id: 'loop' });
+});
 
+// Speed works like a turntable (slower is deeper); pitch shifts on top of it, and "keep the
+// original pitch" cancels the turntable part out. With the "This song" scope both go back to
+// normal when a different song starts.
 const RATES = [0.75, 0.8, 0.9, 1, 1.1, 1.25];
 const fmtRate = (r) => String(+r.toFixed(2));
+const fmtPitch = (p) => (p > 0 ? `+${p}` : p < 0 ? `−${-p}` : '');
+let fxSong = null; // the song the speed and pitch were set for
+
 function setRate(r) {
   S.rate = Math.round(clamp(r, 0.5, 1.5) * 20) / 20;
   invoke('audio_rate', { rate: S.rate }).catch(() => {});
   tt.rate = S.rate;
-  $('rateLabel').textContent = `${fmtRate(S.rate)}×`;
+  applyFx();
+}
+function setPitch(p) {
+  S.pitch = clamp(Math.round(p), -12, 12);
+  applyFx();
+}
+function applyFx() {
+  const shift = S.pitch + (S.keepPitch ? -12 * Math.log2(S.rate) : 0);
+  invoke('audio_pitch', { semitones: shift }).catch(() => {});
+  const changed = S.rate !== 1 || S.pitch !== 0;
+  $('rateLabel').textContent = `${fmtRate(S.rate)}×${S.pitch ? ` ${fmtPitch(S.pitch)}` : ''}`;
+  $('rateBtn').classList.toggle('off', !changed);
   $('rateValue').textContent = S.rate === 1 ? 'Normal' : `${fmtRate(S.rate)}×`;
-  $('rateBtn').classList.toggle('off', S.rate === 1);
   $('rateRange').value = S.rate;
   $('rateRange').style.setProperty('--fill', `${(S.rate - 0.5) * 100}%`);
   $('ratePresets').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.rate === S.rate));
+  $('pitchValue').textContent = S.pitch ? `${fmtPitch(S.pitch)} semitone${Math.abs(S.pitch) === 1 ? '' : 's'}` : 'Original';
+  $('pitchRange').value = S.pitch;
+  $('pitchRange').style.setProperty('--fill', `${((S.pitch + 12) / 24) * 100}%`);
+  $('keepPitch').classList.toggle('on', S.keepPitch);
+  $('fxScope').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.fxScope));
+  $('fxHint').textContent = S.fxScope === 'song' ? 'Goes back to normal when the next song starts.' : 'Stays on as the songs change.';
+  fxSong = currentTrack()?.id ?? null;
   save();
+}
+/** A song started: with the "This song" scope, a different song plays at normal speed and pitch. */
+function fxNewSong(track) {
+  if (S.fxScope === 'song' && track.id !== fxSong && (S.rate !== 1 || S.pitch !== 0)) {
+    S.pitch = 0;
+    setRate(1);
+  }
+  fxSong = track.id;
 }
 $('rateRange').addEventListener('input', (e) => setRate(+e.target.value));
 $('ratePresets').addEventListener('click', (e) => e.target.dataset.rate && setRate(+e.target.dataset.rate));
+$('pitchRange').addEventListener('input', (e) => setPitch(+e.target.value));
+$('keepPitch').addEventListener('click', () => {
+  S.keepPitch = !S.keepPitch;
+  applyFx();
+});
+$('fxScope').addEventListener('click', (e) => {
+  if (!e.target.dataset.scope) return;
+  S.fxScope = e.target.dataset.scope;
+  applyFx();
+});
 
 async function clearCache() {
   const freed = await invoke('clear_cache');
@@ -596,6 +644,7 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
 
   invoke('media_meta', { title: track.title, artist: track.artist, album: col.name, cover: art, duration }).catch(() => {});
   fmStart(track, col, duration);
+  fxNewSong(track);
 
   if (!autoplay) return;
   await within(tt.needleDown(duration ? start / duration : 0), 2500);
@@ -639,6 +688,7 @@ async function crossfadeTo(i, path, secs) {
     applyPalette(art);
     invoke('media_meta', { title: track.title, artist: track.artist, album: col.name, cover: art, duration }).catch(() => {});
     fmStart(track, col, duration);
+    fxNewSong(track);
     prefetchAfter(i);
     // The new song is already playing; the turntable catches up with a record swap.
     if (await tt.swap(art)) {
@@ -1148,7 +1198,10 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'r' || k === 'R') $('loopBtn').click();
   else if (k === '[') setRate(S.rate - 0.05);
   else if (k === ']') setRate(S.rate + 0.05);
-  else if (k === '\\') setRate(1);
+  else if (k === '\\') {
+    S.pitch = 0;
+    setRate(1);
+  }
   else if (k === 'l' || k === 'L') setTab('lyrics');
   else if (k === 'q' || k === 'Q') setTab('queue');
   else if (k === '?') openModal('helpModal', !$('helpModal').classList.contains('open'));

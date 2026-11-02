@@ -4,6 +4,7 @@ mod lastfm;
 mod loudness;
 mod lyrics;
 mod media;
+mod pitch;
 mod resolver;
 mod snapshot;
 mod spotify;
@@ -258,6 +259,11 @@ fn audio_rate(engine: State<'_, Engine>, rate: f32) {
 }
 
 #[tauri::command]
+fn audio_pitch(engine: State<'_, Engine>, semitones: f32) {
+    engine.send(Cmd::Pitch(semitones));
+}
+
+#[tauri::command]
 fn audio_stop(engine: State<'_, Engine>) {
     engine.send(Cmd::Stop);
 }
@@ -490,6 +496,7 @@ pub fn run() {
             audio_seek,
             audio_volume,
             audio_rate,
+            audio_pitch,
             audio_stop,
             media_meta,
             media_playback,

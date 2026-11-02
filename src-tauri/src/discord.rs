@@ -16,7 +16,7 @@ use discord_rich_presence::{
 
 /// Plouk's application on discord.com/developers. It's what names the activity
 /// "Plouk"; it isn't a secret. Empty turns the feature off.
-const APP_ID: &str = "";
+const APP_ID: &str = "1566917355022327890";
 
 pub enum Msg {
     Track { title: String, artist: String, album: String, cover: Option<String>, duration: f64 },

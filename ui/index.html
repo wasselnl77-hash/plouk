@@ -164,13 +164,19 @@
           <svg viewBox="0 0 24 24"><path d="M4.5 17.5a8.5 8.5 0 1 1 15 0" /><path d="M12 14l4.2-4.2" /></svg>
           <span id="rateLabel">1×</span>
         </button>
-        <div class="popover glass" id="ratePop">
+        <div class="popover glass wide" id="ratePop">
           <div class="pop-row"><span>Speed</span><b id="rateValue">Normal</b></div>
           <input type="range" id="rateRange" min="0.5" max="1.5" step="0.05" value="1">
           <div class="pop-presets" id="ratePresets">
             <button data-rate="0.8">Slowed</button><button data-rate="1">Normal</button><button data-rate="1.25">Sped up</button>
           </div>
-          <div class="pop-hint">Like a turntable: slower also sounds deeper.</div>
+          <div class="pop-row pop-gap"><span>Pitch</span><b id="pitchValue">Original</b></div>
+          <input type="range" id="pitchRange" min="-12" max="12" step="1" value="0">
+          <label class="pop-switch"><span>Keep the original pitch when changing speed</span><button class="toggle" id="keepPitch" aria-label="Keep the original pitch"></button></label>
+          <div class="pop-presets pop-gap" id="fxScope">
+            <button data-scope="playlist">Whole playlist</button><button data-scope="song">This song</button>
+          </div>
+          <div class="pop-hint" id="fxHint">Stays on as the songs change.</div>
         </div>
       </div>
       <div class="pop-wrap">
@@ -300,7 +306,7 @@
                 <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
                 <dt><kbd>M</kbd></dt><dd>Mute</dd>
                 <dt><kbd>R</kbd></dt><dd>Loop off / playlist / song</dd>
-                <dt><kbd>[</kbd> <kbd>]</kbd> <kbd>\</kbd></dt><dd>Slower / faster / normal speed</dd>
+                <dt><kbd>[</kbd> <kbd>]</kbd> <kbd>\</kbd></dt><dd>Slower / faster / back to normal speed and pitch</dd>
                 <dt><kbd>Q</kbd> <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
                 <dt><kbd>Ctrl</kbd> <kbd>,</kbd></dt><dd>Options</dd>
                 <dt><kbd>F10</kbd></dt><dd>Open the menus</dd>

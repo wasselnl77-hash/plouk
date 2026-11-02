@@ -150,6 +150,8 @@ async function mockInvoke(cmd, args = {}) {
     case 'update_engine':
       await wait(1200);
       return 'mock';
+    case 'audio_pitch':
+      return null;
     case 'update_check':
       return location.search.includes('update') ? { version: '0.3.0', installed: true } : null;
     case 'update_apply':
