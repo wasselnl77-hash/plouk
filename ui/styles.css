@@ -1140,6 +1140,12 @@ kbd {
   pointer-events: auto;
 }
 .toast.out { animation: toast-out 0.3s ease-in both; }
+.toast .act {
+  margin-left: 6px; padding: 5px 12px; border: 0; border-radius: 999px; font: inherit; font-size: 12px;
+  color: #0b0b0f; background: var(--text); cursor: pointer; transition: transform 0.15s, opacity 0.15s;
+}
+.toast .act:hover { transform: scale(1.04); }
+.toast .act:active { transform: scale(0.97); opacity: 0.85; }
 .toast .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
 .toast.error .dot { background: #ff6b81; box-shadow: 0 0 10px #ff6b81; }
 .toast.ok .dot { background: #5eead4; box-shadow: 0 0 10px #5eead4; }

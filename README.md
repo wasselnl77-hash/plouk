@@ -77,7 +77,7 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.2.2-linux-amd64.deb
+sudo apt install ./plouk-0.2.3-linux-amd64.deb
 ```
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
@@ -96,6 +96,15 @@ On a computer, the first song you play makes Plouk download its own copy of
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) (about 40 MB), plus
 [Deno](https://deno.com) if you don't already have Node or Deno installed.
 On Android there's nothing extra to download.
+
+**Updates.** From 0.2.3 on, Plouk keeps itself up to date. It checks in the
+background, and when a new version is ready a small note pops up with a
+button. On a Mac or with the AppImage, the new version is already in place and
+you just restart. With the `.deb`, Linux asks for your password first. On
+Android, the system installer opens and you tap Update. Every update is signed,
+and Plouk won't install one that doesn't match. You can turn this off in
+Options → Storage & engine. If you have an older version, install 0.2.3 by
+hand once.
 
 ## How it works
 

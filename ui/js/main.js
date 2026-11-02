@@ -203,6 +203,28 @@ $('optBtn').addEventListener('click', () => options.toggle());
 
 // ------------------------------------------------------------------ persistence
 
+// ------------------------------------------------------------------ self-update
+
+// Checks quietly in the background (see updater.rs); once something is found, it waits for the user.
+let updateFound = false;
+async function checkUpdates() {
+  if (updateFound || S.settings.autoUpdate === false) return;
+  const u = await invoke('update_check').catch(() => null);
+  if (!u) return;
+  updateFound = true;
+  toast(u.installed ? `Plouk ${u.version} is installed` : `Plouk ${u.version} is ready`, 'ok', {
+    id: 'self-update',
+    sticky: true,
+    action: {
+      label: u.installed ? 'Restart' : 'Install',
+      run: async () => {
+        await invoke('save_state', { state: { v: 1, ...S, position: pos || S.position } }).catch(() => {});
+        invoke('update_apply').catch((e) => toast(`Update failed: ${e}`, 'error'));
+      },
+    },
+  });
+}
+
 let saveTimer = 0;
 function save(delay = 700) {
   clearTimeout(saveTimer);
@@ -215,7 +237,7 @@ function save(delay = 700) {
 // ------------------------------------------------------------------ toasts & status
 
 const toasts = new Map();
-function toast(text, kind = 'info', { id, sticky = false, progress } = {}) {
+function toast(text, kind = 'info', { id, sticky = false, progress, action } = {}) {
   let el = id && toasts.get(id);
   if (!el) {
     el = document.createElement('div');
@@ -235,6 +257,14 @@ function toast(text, kind = 'info', { id, sticky = false, progress } = {}) {
     }
     meter.firstChild.style.width = `${Math.round(progress * 100)}%`;
   } else meter?.remove();
+  el.querySelector('.act')?.remove();
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'act';
+    btn.textContent = action.label;
+    btn.addEventListener('click', action.run);
+    el.append(btn);
+  }
   clearTimeout(el._t);
   if (!sticky) el._t = setTimeout(() => dismissToast(el, id), kind === 'error' ? 5200 : 3200);
   return el;
@@ -1073,6 +1103,8 @@ async function boot() {
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };
   if (S.settings.launchVolume !== 'last') S.volume = S.settings.launchVolume;
   applySettings();
+  setTimeout(checkUpdates, 20000);
+  setInterval(checkUpdates, 6 * 3600 * 1000);
   renderXf();
   applyVolume();
   renderShelf();

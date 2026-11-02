@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   launchVolume: 'last',
   closeAction: 'tray',
   startHidden: false,
+  autoUpdate: true,
   cacheLimitGB: 5,
 };
 
@@ -97,6 +98,7 @@ export class Options {
     this.renderXf = renderXf;
     toggle($('oNorm'), S.settings.normalize, (v) => ctx.setSetting('normalize', v));
     toggle($('oAutoplay'), S.settings.autoplay, (v) => ctx.setSetting('autoplay', v));
+    toggle($('oAutoUpdate'), S.settings.autoUpdate, (v) => ctx.setSetting('autoUpdate', v));
     this.launchVol = segmented(
       $('oLaunchVol'),
       [

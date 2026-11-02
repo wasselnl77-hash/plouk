@@ -137,3 +137,28 @@ pub async fn take_shared() -> Option<String> {
         .flatten()
         .and_then(|s| s.text)
 }
+
+#[derive(Deserialize)]
+struct UpdateFound {
+    version: Option<String>,
+}
+
+/// Downloads a newer APK if latest.json names one; returns its version.
+pub async fn check_update(manifest: &str, current: &str) -> Result<Option<String>, String> {
+    let handle = plugin()?;
+    let args = json!({ "manifest": manifest, "current": current });
+    tauri::async_runtime::spawn_blocking(move || handle.run_mobile_plugin::<UpdateFound>("checkUpdate", args))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|f| f.version)
+        .map_err(|e| e.to_string())
+}
+
+/// Opens the system installer on the downloaded APK.
+pub fn install_update() -> Result<(), String> {
+    let handle = plugin()?;
+    std::thread::spawn(move || {
+        let _ = handle.run_mobile_plugin::<Value>("installUpdate", json!({}));
+    });
+    Ok(())
+}

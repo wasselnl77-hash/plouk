@@ -45,7 +45,20 @@ jobs:
           workspaces: src-tauri
 
       - name: Build
-        run: npx --yes @tauri-apps/cli@2 build ${{ matrix.args }}
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # Signed update files need the update key. Releases must have it; test runs and forks can do without.
+          UPDATES=()
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            UPDATES=(--config '{"bundle":{"createUpdaterArtifacts":true}}')
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is missing, refusing to release without update signatures"
+            exit 1
+          fi
+          npx --yes @tauri-apps/cli@2 build ${{ matrix.args }} "${UPDATES[@]}"
 
       - name: Collect files
         shell: bash
@@ -55,8 +68,15 @@ jobs:
           if [ "$RUNNER_OS" = "Linux" ]; then
             cp src-tauri/target/release/bundle/deb/*.deb "out/plouk-${VERSION}-linux-amd64.deb"
             cp src-tauri/target/release/bundle/appimage/*.AppImage "out/plouk-${VERSION}-linux-x86_64.AppImage"
+            # Update signatures (see the manifest job)
+            for f in src-tauri/target/release/bundle/deb/*.deb.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-amd64.deb.sig"; done
+            for f in src-tauri/target/release/bundle/appimage/*.AppImage.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-x86_64.AppImage.sig"; done
           else
-            cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "out/plouk-${VERSION}-macos-universal.dmg"
+            B=src-tauri/target/universal-apple-darwin/release/bundle
+            cp $B/dmg/*.dmg "out/plouk-${VERSION}-macos-universal.dmg"
+            # The updater swaps in the zipped app, not the dmg.
+            for f in $B/macos/*.app.tar.gz; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-macos-universal.app.tar.gz"; done
+            for f in $B/macos/*.app.tar.gz.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-macos-universal.app.tar.gz.sig"; done
           fi
           ls -la out
 
@@ -132,3 +152,40 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: out/*
+
+  # latest.json is what installed copies check (see src-tauri/src/updater.rs). It goes up last,
+  # once every platform's files are on the release, so nobody is pointed at a file that isn't there yet.
+  manifest:
+    name: Update manifest
+    needs: [desktop, android]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write and upload latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" -p '*.sig' -D sigs
+          python3 - "${GITHUB_REF_NAME#v}" "https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME" <<'EOF'
+          import datetime, json, sys
+          version, base = sys.argv[1:]
+          def entry(name):
+              return {"signature": open(f"sigs/{name}.sig").read().strip(), "url": f"{base}/{name}"}
+          deb = entry(f"plouk-{version}-linux-amd64.deb")
+          appimage = entry(f"plouk-{version}-linux-x86_64.AppImage")
+          mac = entry(f"plouk-{version}-macos-universal.app.tar.gz")
+          json.dump({
+              "version": version,
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": {
+                  "linux-x86_64-deb": deb,
+                  "linux-x86_64-appimage": appimage,
+                  "linux-x86_64": appimage,
+                  "darwin-aarch64": mac,
+                  "darwin-x86_64": mac,
+              },
+          }, open("latest.json", "w"), indent=2)
+          EOF
+          cat latest.json
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber

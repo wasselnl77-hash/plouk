@@ -6,6 +6,7 @@ mod media;
 mod resolver;
 mod snapshot;
 mod spotify;
+mod updater;
 
 #[cfg(target_os = "android")]
 mod android;
@@ -150,6 +151,17 @@ fn open_cache_dir(resolver: State<'_, Arc<Resolver>>) -> Result<(), String> {
 #[tauri::command]
 async fn update_engine(app: AppHandle, resolver: State<'_, Arc<Resolver>>) -> Result<String, String> {
     resolver.update_now(&app).await
+}
+
+/// Looks for a newer Plouk and downloads it (see updater.rs). None when up to date.
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<Option<updater::UpdateStatus>, String> {
+    updater::check(&app).await
+}
+
+#[tauri::command]
+fn update_apply(app: AppHandle) -> Result<(), String> {
+    updater::apply(&app)
 }
 
 /// Plouk's own window as raw pixels, for the options warp.
@@ -346,7 +358,9 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostarted"]),
-        ));
+        ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::Pending::default());
 
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::init());
@@ -426,6 +440,8 @@ pub fn run() {
             set_cache_limit,
             open_cache_dir,
             update_engine,
+            update_check,
+            update_apply,
             app_info,
             audio_normalize,
             capture_window,

@@ -37,6 +37,12 @@ class MetadataArgs {
 }
 
 @InvokeArg
+class UpdateArgs {
+  var manifest: String = ""
+  var current: String = ""
+}
+
+@InvokeArg
 class PlaybackArgs {
   var playing: Boolean = false
   var positionMs: Long = 0
@@ -122,6 +128,26 @@ class PloukPlugin(private val activity: Activity) : Plugin(activity) {
     PlaybackService.positionMs = args.positionMs
     if (args.playing) askForNotifications()
     PlaybackService.update(activity)
+    invoke.resolve()
+  }
+
+  @Command
+  fun checkUpdate(invoke: Invoke) {
+    val args = invoke.parseArgs(UpdateArgs::class.java)
+    io.execute {
+      try {
+        val result = JSObject()
+        result.put("version", Updater.check(activity, args.manifest, args.current))
+        invoke.resolve(result)
+      } catch (e: Exception) {
+        invoke.reject(e.message ?: "Couldn't check for updates")
+      }
+    }
+  }
+
+  @Command
+  fun installUpdate(invoke: Invoke) {
+    activity.runOnUiThread { Updater.install(activity) }
     invoke.resolve()
   }
 

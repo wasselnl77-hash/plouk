@@ -150,6 +150,10 @@ async function mockInvoke(cmd, args = {}) {
     case 'update_engine':
       await wait(1200);
       return 'mock';
+    case 'update_check':
+      return null;
+    case 'update_apply':
+      return null;
     case 'launch_hidden':
       return false;
     case 'platform':
