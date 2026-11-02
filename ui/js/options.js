@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   closeAction: 'tray',
   startHidden: false,
   warp: true,
+  discord: false, // sharing what you listen to is opt-in
   lite: null, // null: on for phones, off for computers (decided at startup)
   autoUpdate: true,
   cacheLimitGB: 5,
@@ -99,8 +100,9 @@ export class Options {
     });
     this.renderXf = renderXf;
     // On/off settings, re-read from S.settings every time the panel opens (see refresh).
-    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp', oLite: 'lite' };
+    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp', oLite: 'lite', oDiscord: 'discord' };
     this.flags = Object.entries(flags).map(([id, key]) => [key, toggle($(id), S.settings[key], (v) => ctx.setSetting(key, v))]);
+    $('oFmBtn').addEventListener('click', () => this.lastfmClick());
     this.launchVol = segmented(
       $('oLaunchVol'),
       [
@@ -194,8 +196,45 @@ export class Options {
     this.$('oLibDesc').textContent = n ? `${n} playlist${n === 1 ? '' : 's'} · ${songs} songs on your shelf` : 'Your shelf is empty.';
   }
 
+  /** Last.fm: Connect opens the browser, then we wait for the user to approve Plouk there. */
+  async refreshLastfm() {
+    const fm = await this.ctx.invoke('lastfm_state').catch(() => null);
+    this.$('oFmRow').hidden = !fm?.available;
+    if (!fm?.available || this.fmWaiting) return;
+    this.fmUser = fm.user;
+    this.$('oFmDesc').textContent = fm.user ? `Scrobbling as ${fm.user}.` : 'Log what you listen to on your Last.fm profile.';
+    this.$('oFmBtn').textContent = fm.user ? 'Disconnect' : 'Connect';
+  }
+
+  async lastfmClick() {
+    const btn = this.$('oFmBtn');
+    if (this.fmUser) {
+      await this.ctx.invoke('lastfm_disconnect').catch(() => {});
+      return this.refreshLastfm();
+    }
+    try {
+      await this.ctx.invoke('lastfm_connect');
+    } catch (e) {
+      return this.ctx.toast(`Couldn't reach Last.fm: ${e}`, 'error');
+    }
+    this.fmWaiting = true;
+    btn.disabled = true;
+    this.$('oFmDesc').textContent = 'Approve Plouk in your browser, then come back here.';
+    btn.textContent = 'Waiting…';
+    let user = null;
+    for (let i = 0; i < 60 && !user; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      user = await this.ctx.invoke('lastfm_finish').catch(() => null);
+    }
+    this.fmWaiting = false;
+    btn.disabled = false;
+    if (user) this.ctx.toast(`Scrobbling to Last.fm as ${user}`, 'ok');
+    this.refreshLastfm();
+  }
+
   async refresh() {
     const S = this.ctx.S;
+    this.refreshLastfm();
     this.renderXf();
     this.flags.forEach(([key, t]) => t.set(!!S.settings[key]));
     this.launchVol.select(S.settings.launchVolume, true);

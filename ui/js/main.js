@@ -74,6 +74,7 @@ function applySettings() {
   invoke('audio_normalize', { on: !!st.normalize }).catch(() => {});
   invoke('set_close_to_tray', { on: st.closeAction !== 'quit' }).catch(() => {});
   invoke('set_cache_limit', { bytes: (st.cacheLimitGB || 0) * 2 ** 30 }).catch(() => {});
+  invoke('set_discord', { on: st.discord === true }).catch(() => {});
   // Lite mode: lighter glow, no glass blur, no warp, a still halo. Phones flicker under the warp regardless.
   const lite = !!st.lite;
   app.classList.toggle('lite', lite);
@@ -258,6 +259,29 @@ $('optBtn').addEventListener('click', () => options.toggle());
 
 // ------------------------------------------------------------------ persistence
 
+// ------------------------------------------------------------------ Last.fm
+
+// A song counts once it has really been listened to for half its length or 4 minutes, and
+// only if it's longer than 30 seconds (Last.fm's rule). Without a connected account the
+// backend ignores these calls.
+let fm = null;
+function fmStart(track, col, length) {
+  const song = { artist: track.artist, track: track.title, album: col.name, duration: length || 0, timestamp: Math.floor(Date.now() / 1000) };
+  fm = { song, listened: 0, sent: false, last: 0 };
+  invoke('lastfm_now_playing', { song }).catch(() => {});
+}
+function fmTick() {
+  if (!fm || fm.sent) return;
+  const now = performance.now();
+  if (playing && fm.last) fm.listened += (now - fm.last) / 1000;
+  fm.last = playing ? now : 0;
+  const d = fm.song.duration;
+  if (d > 30 && fm.listened >= Math.min(d / 2, 240)) {
+    fm.sent = true;
+    invoke('lastfm_scrobble', { song: fm.song }).catch(() => {});
+  }
+}
+
 // ------------------------------------------------------------------ self-update
 
 // Checks quietly in the background (see updater.rs); once something is found, it waits for the user.
@@ -267,18 +291,27 @@ async function checkUpdates() {
   const u = await invoke('update_check').catch(() => null);
   if (!u) return;
   updateFound = true;
-  toast(u.installed ? `Plouk ${u.version} is installed` : `Plouk ${u.version} is ready`, 'ok', {
-    id: 'self-update',
-    sticky: true,
-    action: {
-      label: u.installed ? 'Restart' : 'Install',
-      run: async () => {
-        await invoke('save_state', { state: { v: 1, ...S, position: pos || S.position } }).catch(() => {});
-        invoke('update_apply').catch((e) => toast(`Update failed: ${e}`, 'error'));
-      },
-    },
-  });
+  $('updVersion').textContent = u.version;
+  $('updText').textContent = u.installed
+    ? 'It\'s already in place. Restart Plouk to start using it, and you\'ll pick up right where you left off.'
+    : PLAT.mobile
+      ? 'Tap Install and Android takes it from there. Your music and library stay put.'
+      : 'Install it now and Plouk restarts on the new version, right where you left off.';
+  $('updGo').textContent = u.installed ? 'Restart' : 'Install';
+  showUpdateCard(true);
 }
+function showUpdateCard(on) {
+  $('updateCard').classList.toggle('open', on);
+  $('updateCard').setAttribute('aria-hidden', String(!on));
+}
+$('updLater').addEventListener('click', () => showUpdateCard(false));
+$('updGo').addEventListener('click', async () => {
+  $('updGo').disabled = true;
+  await invoke('save_state', { state: { v: 1, ...S, position: pos || S.position } }).catch(() => {});
+  invoke('update_apply')
+    .catch((e) => toast(`Update failed: ${e}`, 'error'))
+    .finally(() => ($('updGo').disabled = false));
+});
 
 let saveTimer = 0;
 function save(delay = 700) {
@@ -562,6 +595,7 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
   if (token !== playToken) return;
 
   invoke('media_meta', { title: track.title, artist: track.artist, album: col.name, cover: art, duration }).catch(() => {});
+  fmStart(track, col, duration);
 
   if (!autoplay) return;
   await within(tt.needleDown(duration ? start / duration : 0), 2500);
@@ -604,6 +638,7 @@ async function crossfadeTo(i, path, secs) {
     if (token !== playToken) return;
     applyPalette(art);
     invoke('media_meta', { title: track.title, artist: track.artist, album: col.name, cover: art, duration }).catch(() => {});
+    fmStart(track, col, duration);
     prefetchAfter(i);
     // The new song is already playing; the turntable catches up with a record swap.
     if (await tt.swap(art)) {
@@ -726,6 +761,7 @@ listen('audio', ({ payload: e }) => {
   if (e.deck !== deck) return;
   pos = e.pos;
   if (e.dur > 1) duration = e.dur;
+  fmTick();
   if (!scrubbingBar && tt.mode !== 'drag') {
     showProgress(pos, duration);
     tt.setProgress(duration ? pos / duration : 0);

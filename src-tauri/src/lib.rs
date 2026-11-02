@@ -1,5 +1,6 @@
 mod audio;
 mod decode;
+mod lastfm;
 mod loudness;
 mod lyrics;
 mod media;
@@ -10,6 +11,8 @@ mod updater;
 
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(desktop)]
+mod discord;
 #[cfg(desktop)]
 mod ytdlp;
 
@@ -267,13 +270,68 @@ fn audio_normalize(engine: State<'_, Engine>, on: bool) {
 // ------------------------------------------------------------- system
 
 #[tauri::command]
-fn media_meta(media: State<'_, Media>, title: String, artist: String, album: String, cover: Option<String>, duration: f64) {
+fn media_meta(app: AppHandle, media: State<'_, Media>, title: String, artist: String, album: String, cover: Option<String>, duration: f64) {
+    #[cfg(desktop)]
+    app.state::<discord::Discord>().send(discord::Msg::Track {
+        title: title.clone(),
+        artist: artist.clone(),
+        album: album.clone(),
+        cover: cover.clone(),
+        duration,
+    });
+    #[cfg(mobile)]
+    let _ = app;
     media.send(MediaCmd::Meta { title, artist, album, cover, duration });
 }
 
 #[tauri::command]
-fn media_playback(media: State<'_, Media>, playing: bool, pos: f64) {
+fn media_playback(app: AppHandle, media: State<'_, Media>, playing: bool, pos: f64) {
+    #[cfg(desktop)]
+    app.state::<discord::Discord>().send(discord::Msg::Playback { playing, pos });
+    #[cfg(mobile)]
+    let _ = app;
     media.send(MediaCmd::Playback { playing, pos });
+}
+
+// ------------------------------------------------------------- Last.fm (see lastfm.rs)
+
+#[tauri::command]
+fn lastfm_state(lastfm: State<'_, lastfm::Lastfm>) -> lastfm::LastfmState {
+    lastfm.state()
+}
+
+#[tauri::command]
+async fn lastfm_connect(app: AppHandle, lastfm: State<'_, lastfm::Lastfm>) -> Result<(), String> {
+    lastfm.connect(&app).await
+}
+
+#[tauri::command]
+async fn lastfm_finish(app: AppHandle, lastfm: State<'_, lastfm::Lastfm>) -> Result<Option<String>, String> {
+    lastfm.finish(&app).await
+}
+
+#[tauri::command]
+fn lastfm_disconnect(app: AppHandle, lastfm: State<'_, lastfm::Lastfm>) {
+    lastfm.disconnect(&app)
+}
+
+#[tauri::command]
+async fn lastfm_now_playing(lastfm: State<'_, lastfm::Lastfm>, song: lastfm::Scrobble) -> Result<(), String> {
+    lastfm.now_playing(song).await
+}
+
+#[tauri::command]
+async fn lastfm_scrobble(app: AppHandle, lastfm: State<'_, lastfm::Lastfm>, song: lastfm::Scrobble) -> Result<(), String> {
+    lastfm.scrobble(&app, song).await
+}
+
+/// "Show on Discord" in Options.
+#[tauri::command]
+fn set_discord(_app: AppHandle, on: bool) {
+    #[cfg(desktop)]
+    _app.state::<discord::Discord>().send(discord::Msg::Enabled(on));
+    #[cfg(mobile)]
+    let _ = on;
 }
 
 #[tauri::command]
@@ -348,7 +406,7 @@ pub fn run() {
     #[cfg(mobile)]
     let (launch_uri, autostarted) = (None, false);
 
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
 
     #[cfg(desktop)]
     let builder = builder
@@ -365,7 +423,8 @@ pub fn run() {
             Some(vec!["--autostarted"]),
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(updater::Pending::default());
+        .manage(updater::Pending::default())
+        .manage(discord::Discord::spawn());
 
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::init());
@@ -377,6 +436,7 @@ pub fn run() {
             let handle = app.handle().clone();
             app.manage(Engine::spawn(handle.clone()));
             app.manage(Media::spawn(handle.clone()));
+            app.manage(lastfm::Lastfm::load(&handle));
             let resolver = Resolver::new(&handle)?;
             app.manage(resolver.clone());
             tauri::async_runtime::spawn(resolver.ensure(handle.clone()));
@@ -434,6 +494,13 @@ pub fn run() {
             media_meta,
             media_playback,
             media_volume,
+            set_discord,
+            lastfm_state,
+            lastfm_connect,
+            lastfm_finish,
+            lastfm_disconnect,
+            lastfm_now_playing,
+            lastfm_scrobble,
             load_state,
             save_state,
             quit_app,

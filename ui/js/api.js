@@ -151,7 +151,7 @@ async function mockInvoke(cmd, args = {}) {
       await wait(1200);
       return 'mock';
     case 'update_check':
-      return null;
+      return location.search.includes('update') ? { version: '0.3.0', installed: true } : null;
     case 'update_apply':
       return null;
     case 'launch_hidden':

@@ -264,12 +264,20 @@
               <div class="opt-text"><div class="opt-label">Lite mode</div><div class="opt-desc">Lighter effects for phones and slower computers: a calmer glow, no glass blur, no warp.</div></div>
               <button class="toggle" id="oLite" aria-label="Lite mode"></button>
             </div>
+            <div class="opt-row" id="oFmRow" hidden>
+              <div class="opt-text"><div class="opt-label">Last.fm</div><div class="opt-desc" id="oFmDesc">Log what you listen to on your Last.fm profile.</div></div>
+              <button class="btn sm ghost" id="oFmBtn">Connect</button>
+            </div>
           </section>
 
           <section class="opt-section" data-sec="behavior">
             <div class="opt-row col">
               <div class="opt-text"><div class="opt-label">Close button</div><div class="opt-desc">Hiding keeps the music playing from the tray icon.</div></div>
               <div id="oClose"></div>
+            </div>
+            <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Show on Discord</div><div class="opt-desc">Let friends see what you're listening to, when the Discord app is open.</div></div>
+              <button class="toggle" id="oDiscord" aria-label="Show on Discord"></button>
             </div>
             <div class="opt-row">
               <div class="opt-text"><div class="opt-label">Warp when opening options</div><div class="opt-desc">Bend the window out of the way. When it's off, the options simply fade in.</div></div>
@@ -374,6 +382,19 @@
   </div>
 
   <div class="toasts" id="toasts"></div>
+
+  <div class="update-card glass" id="updateCard" role="dialog" aria-labelledby="updTitle" aria-hidden="true">
+    <div class="upd-disc"><i></i></div>
+    <div class="upd-body">
+      <div class="upd-kicker">Update <span class="upd-version" id="updVersion"></span></div>
+      <div class="upd-title" id="updTitle">A new Plouk is ready</div>
+      <div class="upd-text" id="updText"></div>
+      <div class="upd-actions">
+        <button class="btn ghost" id="updLater">Later</button>
+        <button class="btn upd-go" id="updGo">Restart</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="module" src="js/main.js"></script>
 </body>

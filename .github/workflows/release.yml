@@ -53,6 +53,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PLOUK_LASTFM_KEY: ${{ secrets.PLOUK_LASTFM_KEY }}
+          PLOUK_LASTFM_SECRET: ${{ secrets.PLOUK_LASTFM_SECRET }}
         run: |
           # Signed update files need the update key. Releases must have it; test runs and forks can do without.
           UPDATES=()
@@ -147,6 +149,9 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build
+        env:
+          PLOUK_LASTFM_KEY: ${{ secrets.PLOUK_LASTFM_KEY }}
+          PLOUK_LASTFM_SECRET: ${{ secrets.PLOUK_LASTFM_SECRET }}
         run: cargo tauri android build --apk --target aarch64 armv7 x86_64
 
       - name: Collect files
