@@ -35,6 +35,7 @@ const STYLUS_BASE = Math.atan2(STYLUS.y, STYLUS.x) / D;
 
 export class Turntable {
   constructor(el) {
+    this.rate = 1; // playback speed; the record spins faster or slower with it
     this.el = el;
     this.slot = el.querySelector('.record-slot');
     this.record = el.querySelector('.record');
@@ -82,7 +83,7 @@ export class Turntable {
     const dt = Math.min(0.05, (now - (this.last ?? now)) / 1000);
     this.last = now;
 
-    const target = this.playing ? RPM_DEG : 0;
+    const target = this.playing ? RPM_DEG * this.rate : 0;
     const k = target > this.omega ? 2.6 : 1.7;
     this.omega += (target - this.omega) * (1 - Math.exp(-dt * k));
     if (!this.playing && this.omega < 0.3) this.omega = 0;
@@ -100,7 +101,9 @@ export class Turntable {
   }
 
   renderArm(force = false) {
-    if (!force && this.drawnTheta === this.theta && this.drawnLift === this.lift) return;
+    // The arm creeps a hair every frame; redrawing it (and its blurred shadow) only once it has moved
+    // a visible amount keeps it looking identical at a fraction of the cost.
+    if (!force && Math.abs(this.drawnTheta - this.theta) < 0.02 && this.drawnLift === this.lift) return;
     this.drawnTheta = this.theta;
     this.drawnLift = this.lift;
     const s = 1 + this.lift * 0.022;

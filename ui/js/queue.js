@@ -128,7 +128,8 @@ export class Queue {
     this.eq.forEach((bar, k) => {
       const wobble = 0.5 + 0.5 * Math.sin(t * (7 + k * 2.3) + k * 1.7);
       const h = playing ? 18 + Math.min(1, level) * 62 * (0.55 + wobble * 0.45) + wobble * 20 : 18;
-      bar.style.height = `${h.toFixed(0)}%`;
+      const tf = `scaleY(${(h / 100).toFixed(2)})`;
+      if (bar.style.transform !== tf) bar.style.transform = tf;
     });
   }
 }

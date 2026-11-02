@@ -27,6 +27,8 @@ const S = {
   volume: 0.8,
   muted: false,
   crossfade: 6,
+  loop: 'off', // 'off' | 'all' (the playlist) | 'one' (the song)
+  rate: 1,
   tab: 'queue',
   art: {},
   settings: { ...DEFAULT_SETTINGS },
@@ -72,6 +74,8 @@ function applySettings() {
   invoke('audio_normalize', { on: !!st.normalize }).catch(() => {});
   invoke('set_close_to_tray', { on: st.closeAction !== 'quit' }).catch(() => {});
   invoke('set_cache_limit', { bytes: (st.cacheLimitGB || 0) * 2 ** 30 }).catch(() => {});
+  // Phones flicker under the warp, so there the options always just fade.
+  warp.simple = !!PLAT.mobile || st.warp === false;
 }
 
 function setSetting(key, value) {
@@ -85,6 +89,38 @@ function setCrossfade(v) {
   renderXf();
   save();
 }
+
+// ------------------------------------------------------------------ loop & speed
+
+const LOOPS = ['off', 'all', 'one'];
+const LOOP_NAMES = { off: 'Off', all: 'Playlist', one: 'Song' };
+function setLoop(mode) {
+  S.loop = LOOPS.includes(mode) ? mode : 'off';
+  const btn = $('loopBtn');
+  btn.dataset.loop = S.loop;
+  btn.classList.toggle('off', S.loop === 'off');
+  btn.setAttribute('aria-label', `Loop: ${LOOP_NAMES[S.loop].toLowerCase()}`);
+  btn.title = `Loop: ${LOOP_NAMES[S.loop]}`;
+  save();
+}
+$('loopBtn').addEventListener('click', () => setLoop(LOOPS[(LOOPS.indexOf(S.loop) + 1) % LOOPS.length]));
+
+const RATES = [0.75, 0.8, 0.9, 1, 1.1, 1.25];
+const fmtRate = (r) => String(+r.toFixed(2));
+function setRate(r) {
+  S.rate = Math.round(clamp(r, 0.5, 1.5) * 20) / 20;
+  invoke('audio_rate', { rate: S.rate }).catch(() => {});
+  tt.rate = S.rate;
+  $('rateLabel').textContent = `${fmtRate(S.rate)}×`;
+  $('rateValue').textContent = S.rate === 1 ? 'Normal' : `${fmtRate(S.rate)}×`;
+  $('rateBtn').classList.toggle('off', S.rate === 1);
+  $('rateRange').value = S.rate;
+  $('rateRange').style.setProperty('--fill', `${(S.rate - 0.5) * 100}%`);
+  $('ratePresets').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.rate === S.rate));
+  save();
+}
+$('rateRange').addEventListener('input', (e) => setRate(+e.target.value));
+$('ratePresets').addEventListener('click', (e) => e.target.dataset.rate && setRate(+e.target.dataset.rate));
 
 async function clearCache() {
   const freed = await invoke('clear_cache');
@@ -128,8 +164,7 @@ const options = new Options($('options'), {
   beforeOpen: () => {
     menubar.close();
     document.querySelectorAll('.modal.open').forEach((m) => openModal(m.id, false));
-    $('xfPop').classList.remove('open');
-    $('xfBtn').classList.remove('open');
+    closePopovers();
   },
 });
 
@@ -155,7 +190,7 @@ const menubar = new MenuBar($('menubar'), $('dropdown'), () => {
       id: 'playback',
       items: [
         { label: playing ? 'Pause' : 'Play', kbd: 'Space', disabled: !has, action: togglePlay },
-        { label: 'Next song', kbd: 'Shift →', disabled: !col || S.index + 1 >= col.tracks.length, action: next },
+        { label: 'Next song', kbd: 'Shift →', disabled: nextIndex() < 0, action: next },
         { label: 'Previous song', kbd: 'Shift ←', disabled: !has, action: prev },
         '-',
         { label: 'Forward 5 seconds', kbd: '→', disabled: !deck, action: () => seekTo(pos + 5) },
@@ -167,6 +202,20 @@ const menubar = new MenuBar($('menubar'), $('dropdown'), () => {
           value: nearest(S.crossfade, [0, 3, 6, 9, 12]),
           options: [0, 3, 6, 9, 12].map((v) => ({ label: v ? `${v}s` : 'Off', value: v })),
           onPick: setCrossfade,
+        },
+        {
+          type: 'segment',
+          label: 'Loop',
+          value: S.loop,
+          options: LOOPS.map((v) => ({ label: LOOP_NAMES[v], value: v })),
+          onPick: setLoop,
+        },
+        {
+          type: 'segment',
+          label: 'Speed',
+          value: nearest(S.rate, RATES),
+          options: RATES.map((v) => ({ label: `${fmtRate(v)}×`, value: v })),
+          onPick: setRate,
         },
         '-',
         { label: 'Mute', kbd: 'M', checked: S.muted, action: () => $('muteBtn').click() },
@@ -363,16 +412,24 @@ async function applyPalette(url) {
 // ------------------------------------------------------------------ progress UI
 
 let scrubbingBar = false;
+// Progress arrives 30 times a second; only touch the page when something visibly changes
+// (each write meant a layout and repaint, even while paused).
+const shown = { frac: -1, cur: '', dur: '' };
 function showProgress(p, d) {
   const frac = d > 0 ? clamp(p / d, 0, 1) : 0;
-  $('barFill').style.width = `${frac * 100}%`;
-  $('barKnob').style.left = `${frac * 100}%`;
-  $('tCur').textContent = fmtTime(p);
-  $('tDur').textContent = fmtTime(d);
+  if (Math.abs(frac - shown.frac) > 0.0015 || (frac === 0) !== (shown.frac === 0)) {
+    shown.frac = frac;
+    $('barFill').style.width = `${frac * 100}%`;
+    $('barKnob').style.left = `${frac * 100}%`;
+  }
+  const cur = fmtTime(p), dur = fmtTime(d);
+  if (cur !== shown.cur) $('tCur').textContent = shown.cur = cur;
+  if (dur !== shown.dur) $('tDur').textContent = shown.dur = dur;
 }
 
 function setPlayingUI(on) {
   playing = on;
+  ambient.calm = !on;
   app.classList.toggle('playing', on);
   $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play');
   pushMedia(true);
@@ -555,9 +612,9 @@ async function crossfadeTo(i, path, secs) {
 function onEnded(id) {
   if (id !== deck) return;
   deck = 0;
-  const col = current();
-  if (col && col.tracks[S.index + 1]) {
-    playIndex(S.index + 1);
+  const i = nextIndex(true);
+  if (i >= 0) {
+    playIndex(i, { transition: i === S.index ? 'none' : 'swap' });
   } else {
     setPlayingUI(false);
     tt.setPlaying(false);
@@ -590,14 +647,26 @@ function togglePlay() {
   }
 }
 
-function next() {
+/** The song after this one, or -1. Only a song ending by itself (`ended`) repeats under "loop song";
+ *  pressing Next still moves on. "Loop playlist" wraps around to the first song. */
+function nextIndex(ended = false) {
   const col = current();
-  if (col && S.index + 1 < col.tracks.length) playIndex(S.index + 1);
+  if (!col || S.index < 0) return -1;
+  if (ended && S.loop === 'one') return S.index;
+  if (S.index + 1 < col.tracks.length) return S.index + 1;
+  return S.loop === 'all' ? 0 : -1;
+}
+
+function next() {
+  const i = nextIndex();
+  if (i >= 0) playIndex(i);
 }
 
 function prev() {
   if (pos > 4 && deck) return seekTo(0);
+  const col = current();
   if (S.index > 0) playIndex(S.index - 1);
+  else if (col && S.loop === 'all') playIndex(col.tracks.length - 1);
 }
 
 function seekTo(secs) {
@@ -667,15 +736,16 @@ listen('audio', ({ payload: e }) => {
   }
 
   // Start the crossfade once the next song is ready and the end is near.
-  const col = current();
-  const nextTrack = col?.tracks[S.index + 1];
+  // "Loop song" restarts instead (see onEnded); blending a song into itself sounds muddy.
+  const ni = S.loop === 'one' ? -1 : nextIndex(true);
+  const nextTrack = ni >= 0 ? current()?.tracks[ni] : null;
   if (playing && nextTrack && S.crossfade > 0 && !xfStarted && duration > S.crossfade + 10) {
-    const remain = duration - pos;
+    const remain = (duration - pos) / S.rate;
     if (remain <= S.crossfade) {
       const path = prepared.get(nextTrack.id);
       if (path) {
         xfStarted = true;
-        crossfadeTo(S.index + 1, path, Math.max(1, remain));
+        crossfadeTo(ni, path, Math.max(1, remain));
       }
     } else if (remain < S.crossfade + 40) {
       prepare(nextTrack).catch(() => {});
@@ -710,10 +780,17 @@ listen('media-key', ({ payload: k }) => {
   }
 });
 
+const halo = document.querySelector('.halo');
+let drawnBreath = -1;
 function frame() {
   breath += (breathTarget - breath) * (breathTarget > breath ? 0.3 : 0.06);
   if (!playing) breathTarget *= 0.9;
-  $('deck').style.setProperty('--breath', breath.toFixed(3));
+  // Set the halo directly (a CSS variable on #deck restyled the whole deck every frame).
+  if (Math.abs(breath - drawnBreath) > 0.002) {
+    drawnBreath = breath;
+    halo.style.opacity = (0.38 + breath * 0.5).toFixed(3);
+    halo.style.transform = `scale(${(0.96 + breath * 0.05).toFixed(4)})`;
+  }
   ambient.breath = breath;
   queue.pulse(lastLevel, playing);
   requestAnimationFrame(frame);
@@ -941,21 +1018,29 @@ function renderXf() {
   $('xfRange').value = S.crossfade;
   $('xfRange').style.setProperty('--fill', `${(S.crossfade / 12) * 100}%`);
 }
-$('xfBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  $('xfPop').classList.toggle('open');
-  $('xfBtn').classList.toggle('open');
-});
+function closePopovers(except) {
+  document.querySelectorAll('.pop-wrap').forEach((w) => {
+    if (w === except) return;
+    w.querySelector('.popover').classList.remove('open');
+    w.querySelector('.chip').classList.remove('open');
+  });
+}
+document.querySelectorAll('.pop-wrap .chip').forEach((chip) =>
+  chip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const wrap = chip.closest('.pop-wrap');
+    closePopovers(wrap);
+    wrap.querySelector('.popover').classList.toggle('open');
+    chip.classList.toggle('open');
+  })
+);
 $('xfRange').addEventListener('input', (e) => {
   S.crossfade = +e.target.value;
   renderXf();
   save();
 });
 document.addEventListener('pointerdown', (e) => {
-  if (!e.target.closest('.xf-wrap')) {
-    $('xfPop').classList.remove('open');
-    $('xfBtn').classList.remove('open');
-  }
+  if (!e.target.closest('.pop-wrap')) closePopovers();
 });
 
 // tabs
@@ -1018,6 +1103,10 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     setVolume(S.volume - 0.05);
   } else if (k === 'm' || k === 'M') $('muteBtn').click();
+  else if (k === 'r' || k === 'R') $('loopBtn').click();
+  else if (k === '[') setRate(S.rate - 0.05);
+  else if (k === ']') setRate(S.rate + 0.05);
+  else if (k === '\\') setRate(1);
   else if (k === 'l' || k === 'L') setTab('lyrics');
   else if (k === 'q' || k === 'Q') setTab('queue');
   else if (k === '?') openModal('helpModal', !$('helpModal').classList.contains('open'));
@@ -1093,7 +1182,6 @@ async function boot() {
   app.classList.toggle('mobile', !!PLAT.mobile);
   if (isMac()) document.querySelectorAll('kbd').forEach((k) => k.textContent === 'Ctrl' && (k.textContent = '⌘'));
   if (PLAT.mobile) setupSheet();
-  warp.simple = !!PLAT.mobile; // phones flicker under the warp, so the options just fade there
   if (PLAT.mobile) {
     ambient.lite = true;
     ambient.resize();
@@ -1103,6 +1191,8 @@ async function boot() {
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };
   if (S.settings.launchVolume !== 'last') S.volume = S.settings.launchVolume;
   applySettings();
+  setLoop(S.loop);
+  setRate(S.rate || 1);
   setTimeout(checkUpdates, 20000);
   setInterval(checkUpdates, 6 * 3600 * 1000);
   renderXf();

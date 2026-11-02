@@ -250,6 +250,11 @@ fn audio_volume(engine: State<'_, Engine>, volume: f32) {
 }
 
 #[tauri::command]
+fn audio_rate(engine: State<'_, Engine>, rate: f32) {
+    engine.send(Cmd::Rate(rate));
+}
+
+#[tauri::command]
 fn audio_stop(engine: State<'_, Engine>) {
     engine.send(Cmd::Stop);
 }
@@ -424,6 +429,7 @@ pub fn run() {
             audio_pause,
             audio_seek,
             audio_volume,
+            audio_rate,
             audio_stop,
             media_meta,
             media_playback,

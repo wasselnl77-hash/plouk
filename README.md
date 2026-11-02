@@ -77,7 +77,7 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.2.3-linux-amd64.deb
+sudo apt install ./plouk-0.2.4-linux-amd64.deb
 ```
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
@@ -133,6 +133,8 @@ plain HTML, CSS and JavaScript with no build step, in `ui/`.
 | Shift + ← → | Previous / next song |
 | ↑ ↓ | Volume |
 | M | Mute |
+| R | Loop off / playlist / song |
+| [ / ] / \\ | Slower / faster / normal speed |
 | Q / L | Queue / lyrics |
 | Ctrl + V | Play a copied Spotify link |
 | Ctrl + , | Options |

@@ -134,10 +134,20 @@ export class Warp {
     }
   }
 
+  /** Drops the window snapshot and shrinks the canvas, so nothing big stays in memory while closed. */
+  release() {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    this.canvas.width = this.canvas.height = 1;
+  }
+
   draw() {
     const gl = this.gl;
     const c = this.canvas;
-    const dpr = devicePixelRatio || 1;
+    // 28 blur samples per pixel is a lot for small GPUs. Once the picture is visibly blurred,
+    // half resolution scaled up looks the same at a quarter of the work.
+    const dpr = (devicePixelRatio || 1) * (this.amt > 0.15 ? 0.5 : 1);
     const w = Math.round(c.clientWidth * dpr);
     const h = Math.round(c.clientHeight * dpr);
     if (c.width !== w || c.height !== h) {
@@ -155,8 +165,8 @@ export class Warp {
     let frame = 0;
     const loop = () => {
       if (!this.live) return;
-      // Full rate while moving, half rate for the gentle drift while held open.
-      if (this.moving || frame++ % 2 === 0) this.draw();
+      // Full rate while moving, a third for the gentle drift while held open.
+      if (this.moving || frame++ % 3 === 0) this.draw();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -230,6 +240,7 @@ export class Warp {
       await this.canvas.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-out' }).finished.catch(() => {});
       this.canvas.classList.remove('on');
       this.live = false;
+      this.release();
     } else {
       await this.cssWarp(false);
     }

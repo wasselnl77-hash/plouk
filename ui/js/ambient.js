@@ -139,6 +139,7 @@ export class Ambient {
     this.ripples = [];
     this.breath = 0;
     this.paused = false;
+    this.calm = true; // music paused: the glow can drift at a lower frame rate
     this.drag = 0;
     this.dragTarget = 0;
     this.colors = DEFAULT_PALETTE.glow.map((c) => [...c]);
@@ -173,14 +174,24 @@ export class Ambient {
     const h = this.bg.clientHeight || window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
     // Phones (lite) draw the soft glow much smaller; it's blurry anyway and their GPUs are not.
-    const bgScale = this.lite ? 0.25 : 0.5;
-    const fxScale = this.lite ? 1 : Math.min(dpr, 1.5);
+    // The glow is soft, so a small buffer scaled up looks the same.
+    const bgScale = this.lite ? 0.25 : 0.4;
     this.bg.width = Math.max(2, Math.round(w * bgScale));
     this.bg.height = Math.max(2, Math.round(h * bgScale));
-    this.fx.width = Math.max(2, Math.round(w * fxScale));
-    this.fx.height = Math.max(2, Math.round(h * fxScale));
+    this.fxScale = this.lite ? 1 : Math.min(dpr, 1.5);
     this.w = w;
     this.h = h;
+    this.sizeFx(this.ripples.length > 0);
+  }
+
+  /** The ripple layer is full resolution only while ripples run; otherwise it's 1×1 and costs nothing. */
+  sizeFx(on) {
+    const w = on ? Math.max(2, Math.round(this.w * this.fxScale)) : 1;
+    const h = on ? Math.max(2, Math.round(this.h * this.fxScale)) : 1;
+    if (this.fx.width !== w || this.fx.height !== h) {
+      this.fx.width = w;
+      this.fx.height = h;
+    }
   }
 
   setPalette(glow, accent) {
@@ -193,6 +204,7 @@ export class Ambient {
   ripple(clientX, clientY, strength = 1) {
     const r = this.bg.getBoundingClientRect();
     this.ripples.push({ x: (clientX - r.left) / r.width, y: 1 - (clientY - r.top) / r.height, t: this.time(), s: strength });
+    this.sizeFx(true);
     if (this.ripples.length > MAX_RIPPLES) this.ripples.shift();
   }
 
@@ -213,8 +225,8 @@ export class Ambient {
     this.frame++;
     const now = this.time();
     const active = this.ripples.length > 0 || this.drag > 0.01 || this.dragTarget > 0;
-    // The glow moves slowly; 30 fps is plenty unless ripples are running.
-    if (!active && this.frame % (this.lite ? 3 : 2)) return;
+    // The glow moves slowly: 30 fps is plenty unless ripples run, and 15 while the music is paused.
+    if (!active && this.frame % (this.calm ? 4 : this.lite ? 3 : 2)) return;
 
     const k = Math.min(1, (performance.now() - this.mixStart) / 1800);
     const e = k * k * (3 - 2 * k);
@@ -248,6 +260,7 @@ export class Ambient {
         gx.drawArrays(gx.TRIANGLES, 0, 3);
       }
       this.fxDirty = this.ripples.length > 0;
+      if (!this.fxDirty) this.sizeFx(false);
     }
   }
 }

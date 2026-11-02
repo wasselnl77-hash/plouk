@@ -135,11 +135,17 @@
     </div>
 
     <div class="transport">
+      <div class="side">
       <div class="vol">
         <button class="ctl small" id="muteBtn" aria-label="Mute">
           <svg viewBox="0 0 24 24" class="vol-ico"><path class="spk" d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" /><path class="w1" d="M15.5 9.2a4 4 0 0 1 0 5.6" /><path class="w2" d="M18.2 6.6a7.6 7.6 0 0 1 0 10.8" /></svg>
         </button>
         <div class="vol-bar bar" id="volBar"><div class="bar-fill" id="volFill"></div><div class="bar-knob" id="volKnob"></div></div>
+      </div>
+      <button class="chip icon off" id="loopBtn" aria-label="Loop: off">
+        <svg viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3" /><path d="M4 11.5v-1a5 5 0 0 1 5-5h11" /><path d="M7 21.5l-3-3 3-3" /><path d="M20 12.5v1a5 5 0 0 1-5 5H4" /></svg>
+        <b class="loop-one">1</b>
+      </button>
       </div>
       <div class="controls">
         <button class="ctl" id="prevBtn" aria-label="Previous">
@@ -152,7 +158,22 @@
           <svg viewBox="0 0 24 24"><path d="M17.5 5.5v13" /><path d="M5.5 6.4v11.2a.9.9 0 0 0 1.38.76l7.92-5.16a1.4 1.4 0 0 0 0-2.4L6.88 5.64a.9.9 0 0 0-1.38.76z" class="fill" /></svg>
         </button>
       </div>
-      <div class="xf-wrap">
+      <div class="side end">
+      <div class="pop-wrap">
+        <button class="chip off" id="rateBtn" aria-label="Speed">
+          <svg viewBox="0 0 24 24"><path d="M4.5 17.5a8.5 8.5 0 1 1 15 0" /><path d="M12 14l4.2-4.2" /></svg>
+          <span id="rateLabel">1×</span>
+        </button>
+        <div class="popover glass" id="ratePop">
+          <div class="pop-row"><span>Speed</span><b id="rateValue">Normal</b></div>
+          <input type="range" id="rateRange" min="0.5" max="1.5" step="0.05" value="1">
+          <div class="pop-presets" id="ratePresets">
+            <button data-rate="0.8">Slowed</button><button data-rate="1">Normal</button><button data-rate="1.25">Sped up</button>
+          </div>
+          <div class="pop-hint">Like a turntable: slower also sounds deeper.</div>
+        </div>
+      </div>
+      <div class="pop-wrap">
         <button class="chip" id="xfBtn" aria-label="Crossfade">
           <svg viewBox="0 0 24 24"><path d="M3 7c6 0 6 10 12 10h6M3 17c6 0 6-10 12-10h6" /></svg>
           <span id="xfLabel">6s</span>
@@ -162,6 +183,7 @@
           <input type="range" id="xfRange" min="0" max="12" step="1" value="6">
           <div class="pop-hint">Blend the end of each song into the next.</div>
         </div>
+      </div>
       </div>
     </div>
   </main>
@@ -246,6 +268,10 @@
               <div id="oClose"></div>
             </div>
             <div class="opt-row">
+              <div class="opt-text"><div class="opt-label">Warp when opening options</div><div class="opt-desc">Bend the window out of the way. When it's off, the options simply fade in.</div></div>
+              <button class="toggle" id="oWarp" aria-label="Warp when opening options"></button>
+            </div>
+            <div class="opt-row">
               <div class="opt-text"><div class="opt-label">Start Plouk at login</div><div class="opt-desc">Open automatically when you sign in.</div></div>
               <button class="toggle" id="oAutostart" aria-label="Start Plouk at login"></button>
             </div>
@@ -261,6 +287,8 @@
                 <dt><kbd>Shift</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next song</dd>
                 <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
                 <dt><kbd>M</kbd></dt><dd>Mute</dd>
+                <dt><kbd>R</kbd></dt><dd>Loop off / playlist / song</dd>
+                <dt><kbd>[</kbd> <kbd>]</kbd> <kbd>\</kbd></dt><dd>Slower / faster / normal speed</dd>
                 <dt><kbd>Q</kbd> <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
                 <dt><kbd>Ctrl</kbd> <kbd>,</kbd></dt><dd>Options</dd>
                 <dt><kbd>F10</kbd></dt><dd>Open the menus</dd>

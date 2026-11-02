@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   launchVolume: 'last',
   closeAction: 'tray',
   startHidden: false,
+  warp: true,
   autoUpdate: true,
   cacheLimitGB: 5,
 };
@@ -96,9 +97,9 @@ export class Options {
       renderXf();
     });
     this.renderXf = renderXf;
-    toggle($('oNorm'), S.settings.normalize, (v) => ctx.setSetting('normalize', v));
-    toggle($('oAutoplay'), S.settings.autoplay, (v) => ctx.setSetting('autoplay', v));
-    toggle($('oAutoUpdate'), S.settings.autoUpdate, (v) => ctx.setSetting('autoUpdate', v));
+    // On/off settings, re-read from S.settings every time the panel opens (see refresh).
+    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp' };
+    this.flags = Object.entries(flags).map(([id, key]) => [key, toggle($(id), S.settings[key], (v) => ctx.setSetting(key, v))]);
     this.launchVol = segmented(
       $('oLaunchVol'),
       [
@@ -195,6 +196,7 @@ export class Options {
   async refresh() {
     const S = this.ctx.S;
     this.renderXf();
+    this.flags.forEach(([key, t]) => t.set(!!S.settings[key]));
     this.launchVol.select(S.settings.launchVolume, true);
     this.closeSeg.select(S.settings.closeAction, true);
     this.cacheLimit.select(S.settings.cacheLimitGB, true);

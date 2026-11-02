@@ -36,6 +36,8 @@ pub enum Cmd {
     Pause,
     Seek(f64),
     Volume(f32),
+    /// Playback rate, like a turntable's pitch control: slower is also lower.
+    Rate(f32),
     Normalize(bool),
     Stop,
 }
@@ -247,6 +249,8 @@ struct Audio {
     playing: bool,
     transport: Ramp,
     speed: Ramp,
+    /// The user's rate, applied on top of the spin-up/spin-down speed.
+    rate: Ramp,
     pausing_until: Option<Instant>,
     next_id: u64,
     last_emit: Instant,
@@ -265,6 +269,7 @@ impl Audio {
             playing: false,
             transport: Ramp::hold(1.0),
             speed: Ramp::hold(1.0),
+            rate: Ramp::hold(1.0),
             pausing_until: None,
             next_id: 1,
             last_emit: Instant::now(),
@@ -312,6 +317,9 @@ impl Audio {
                 }
             }
             Cmd::Volume(v) => self.volume = v.clamp(0.0, 1.0),
+            Cmd::Rate(r) => {
+                self.rate = Ramp::new(self.rate.value(now), r.clamp(0.5, 2.0), Duration::from_millis(250), Shape::Smooth)
+            }
             Cmd::Normalize(on) => self.normalize = on,
             Cmd::Stop => {
                 for d in self.decks.drain(..) {
@@ -458,7 +466,7 @@ impl Audio {
 
         let master = self.volume * self.volume;
         let transport = self.transport.value(now);
-        let speed = self.speed.value(now);
+        let speed = self.speed.value(now) * self.rate.value(now);
         for d in &self.decks {
             let norm = if self.normalize { d.norm.value(now) } else { 1.0 };
             d.sink.set_volume(master * d.gain.value(now) * transport * norm);
@@ -486,7 +494,9 @@ impl Audio {
             }
         }
 
-        if now.duration_since(self.last_emit) >= EMIT_EVERY {
+        // Paused, the position only needs to arrive now and then.
+        let every = if self.playing { EMIT_EVERY } else { EMIT_EVERY * 15 };
+        if now.duration_since(self.last_emit) >= every {
             self.last_emit = now;
             if let Some(d) = self.current_deck() {
                 let (level, bass) = if self.playing { d.levels.read() } else { (0.0, 0.0) };
