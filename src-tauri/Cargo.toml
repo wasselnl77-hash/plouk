@@ -1,6 +1,6 @@
 [package]
 name = "plouk"
-version = "0.3.0"
+version = "0.3.1"
 description = "Plouk — a dark, minimal vinyl music player. Drop a Spotify playlist in and it plays."
 authors = ["EHS"]
 license = "MIT"

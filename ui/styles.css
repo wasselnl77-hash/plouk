@@ -154,6 +154,23 @@ svg { display: block; }
   pointer-events: none;
 }
 
+/* A faint leopard print on the two side panels, tinted with the album's colour. It sits behind
+   their contents (z-index -1 inside the panel's own stacking context) and never moves. */
+.sidebar::after,
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 60%, white);
+  -webkit-mask: url('leopard.svg') 0 0 / 320px 320px repeat;
+  mask: url('leopard.svg') 0 0 / 320px 320px repeat;
+  opacity: 0.05;
+  pointer-events: none;
+  transition: background 1.2s;
+}
+
 /* ------------------------------------------------------------------ sidebar */
 
 .sidebar {
@@ -1324,6 +1341,16 @@ kbd {
   visibility: hidden;
 }
 .dropdown.open { visibility: visible; }
+.ctx-menu {
+  position: absolute; z-index: 90; min-width: 220px; padding: 6px; border-radius: 14px;
+  --glass-fill: rgba(16, 16, 22, 0.82); --blur: 26px;
+  opacity: 0; transform: translateY(6px) scale(0.95); transform-origin: 50% 100%; pointer-events: none;
+  transition: opacity 0.18s, transform 0.35s var(--ease-spring);
+}
+.ctx-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+.ctx-menu .mi .check svg { opacity: 0; transition: opacity 0.15s; }
+.ctx-menu .mi.on .check svg { opacity: 1; }
+.ctx-title { padding: 6px 10px 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 .mi {
   display: flex;
   align-items: center;

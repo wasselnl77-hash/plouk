@@ -151,8 +151,11 @@ function applyFx() {
   $('pitchRange').value = S.pitch;
   $('pitchRange').style.setProperty('--fill', `${((S.pitch + 12) / 24) * 100}%`);
   $('keepPitch').classList.toggle('on', S.keepPitch);
-  $('fxScope').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.fxScope));
-  $('fxHint').textContent = S.fxScope === 'song' ? 'Goes back to normal when the next song starts.' : 'Stays on as the songs change.';
+  const press = PLAT.mobile ? 'Long-press' : 'Right-click';
+  $('fxHint').textContent =
+    S.fxScope === 'song'
+      ? `Just this song: it goes back to normal when the next one starts. ${press} the speed button to change that.`
+      : `Stays on for the whole playlist. ${press} the speed button to set it for one song only.`;
   fxSong = currentTrack()?.id ?? null;
   save();
 }
@@ -171,11 +174,35 @@ $('keepPitch').addEventListener('click', () => {
   S.keepPitch = !S.keepPitch;
   applyFx();
 });
-$('fxScope').addEventListener('click', (e) => {
-  if (!e.target.dataset.scope) return;
-  S.fxScope = e.target.dataset.scope;
-  applyFx();
+// Right-click (long-press on phones) the speed button: whole playlist or this song only.
+const fxMenu = $('fxMenu');
+function showFxMenu(on, x = 0, y = 0) {
+  fxMenu.classList.toggle('open', on);
+  fxMenu.setAttribute('aria-hidden', String(!on));
+  if (!on) return;
+  fxMenu.querySelectorAll('.mi').forEach((b) => b.classList.toggle('on', b.dataset.scope === S.fxScope));
+  const a = app.getBoundingClientRect();
+  const w = fxMenu.offsetWidth, h = fxMenu.offsetHeight;
+  fxMenu.style.left = `${clamp(x - a.left - w / 2, 8, a.width - w - 8)}px`;
+  fxMenu.style.top = `${clamp(y - a.top - h - 10, 8, a.height - h - 8)}px`;
+}
+$('rateBtn').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  closePopovers();
+  showFxMenu(true, e.clientX, e.clientY);
 });
+fxMenu.addEventListener('click', (e) => {
+  const scope = e.target.closest('.mi')?.dataset.scope;
+  if (!scope) return;
+  S.fxScope = scope;
+  applyFx();
+  showFxMenu(false);
+  toast(scope === 'song' ? 'Speed and pitch: this song only' : 'Speed and pitch: the whole playlist', 'info', { id: 'fx' });
+});
+document.addEventListener('pointerdown', (e) => {
+  if (fxMenu.classList.contains('open') && !e.target.closest('#fxMenu')) showFxMenu(false);
+});
+window.addEventListener('keydown', (e) => e.key === 'Escape' && showFxMenu(false));
 
 async function clearCache() {
   const freed = await invoke('clear_cache');

@@ -40,6 +40,13 @@
   </header>
   <div class="dropdown glass" id="dropdown" role="menu"></div>
 
+  <!-- Right-click (or long-press) the speed button: who the speed and pitch are for -->
+  <div class="ctx-menu glass" id="fxMenu" role="menu" aria-hidden="true">
+    <div class="ctx-title">Speed and pitch apply to</div>
+    <button class="mi" data-scope="playlist" role="menuitemradio"><span class="check"><svg viewBox="0 0 16 16" width="13" height="13"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lbl">The whole playlist</span></button>
+    <button class="mi" data-scope="song" role="menuitemradio"><span class="check"><svg viewBox="0 0 16 16" width="13" height="13"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lbl">This song only</span></button>
+  </div>
+
   <!-- Library: one sleeve per playlist you have dropped in -->
   <aside class="sidebar glass" id="sidebar">
     <div class="side-head">
@@ -173,10 +180,7 @@
           <div class="pop-row pop-gap"><span>Pitch</span><b id="pitchValue">Original</b></div>
           <input type="range" id="pitchRange" min="-12" max="12" step="1" value="0">
           <label class="pop-switch"><span>Keep the original pitch when changing speed</span><button class="toggle" id="keepPitch" aria-label="Keep the original pitch"></button></label>
-          <div class="pop-presets pop-gap" id="fxScope">
-            <button data-scope="playlist">Whole playlist</button><button data-scope="song">This song</button>
-          </div>
-          <div class="pop-hint" id="fxHint">Stays on as the songs change.</div>
+          <div class="pop-hint" id="fxHint"></div>
         </div>
       </div>
       <div class="pop-wrap">
