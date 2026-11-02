@@ -21,6 +21,10 @@ jobs:
             os: ubuntu-22.04
             args: ""
             targets: ""
+          - name: Windows
+            os: windows-latest
+            args: ""
+            targets: ""
           - name: macOS
             os: macos-latest
             args: "--target universal-apple-darwin"
@@ -71,6 +75,10 @@ jobs:
             # Update signatures (see the manifest job)
             for f in src-tauri/target/release/bundle/deb/*.deb.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-amd64.deb.sig"; done
             for f in src-tauri/target/release/bundle/appimage/*.AppImage.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-x86_64.AppImage.sig"; done
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            B=src-tauri/target/release/bundle/nsis
+            cp $B/*.exe "out/plouk-${VERSION}-windows-x64-setup.exe"
+            for f in $B/*.exe.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-windows-x64-setup.exe.sig"; done
           else
             B=src-tauri/target/universal-apple-darwin/release/bundle
             cp $B/dmg/*.dmg "out/plouk-${VERSION}-macos-universal.dmg"
@@ -175,6 +183,7 @@ jobs:
           deb = entry(f"plouk-{version}-linux-amd64.deb")
           appimage = entry(f"plouk-{version}-linux-x86_64.AppImage")
           mac = entry(f"plouk-{version}-macos-universal.app.tar.gz")
+          windows = entry(f"plouk-{version}-windows-x64-setup.exe")
           json.dump({
               "version": version,
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -184,6 +193,7 @@ jobs:
                   "linux-x86_64": appimage,
                   "darwin-aarch64": mac,
                   "darwin-x86_64": mac,
+                  "windows-x86_64": windows,
               },
           }, open("latest.json", "w"), indent=2)
           EOF

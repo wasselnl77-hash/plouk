@@ -1,6 +1,7 @@
 //! System media integration: media keys, the desktop's media widget and lock
-//! screen. Linux uses MPRIS on its own thread, macOS uses Now Playing on the
-//! main thread, and Android hands everything to the Kotlin media session.
+//! screen. Linux uses MPRIS on its own thread, macOS (Now Playing) and Windows
+//! (the media overlay) run on the main thread, and Android hands everything to
+//! the Kotlin media session.
 
 use serde::Serialize;
 use tauri::AppHandle;
@@ -41,7 +42,15 @@ mod desktop {
     use super::{MediaCmd, MediaKey};
 
     pub fn create(app: &AppHandle) -> Option<MediaControls> {
-        let config = PlatformConfig { display_name: "Plouk", dbus_name: "plouk", hwnd: None };
+        // Windows ties the media overlay to a window.
+        #[cfg(windows)]
+        let hwnd = {
+            use tauri::Manager;
+            app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map(|h| h.0 as *mut std::ffi::c_void)
+        };
+        #[cfg(not(windows))]
+        let hwnd = None;
+        let config = PlatformConfig { display_name: "Plouk", dbus_name: "plouk", hwnd };
         let mut controls = match MediaControls::new(config) {
             Ok(c) => c,
             Err(e) => {
@@ -110,13 +119,13 @@ mod desktop {
 // ---------------------------------------------------------------- Media handle
 
 pub struct Media {
-    #[cfg(all(desktop, not(target_os = "macos")))]
+    #[cfg(all(desktop, not(any(target_os = "macos", windows))))]
     tx: std::sync::mpsc::Sender<MediaCmd>,
-    #[cfg(any(target_os = "macos", mobile))]
+    #[cfg(any(target_os = "macos", windows, mobile))]
     app: AppHandle,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 thread_local! {
     static CONTROLS: std::cell::RefCell<Option<souvlaki::MediaControls>> = const { std::cell::RefCell::new(None) };
 }
@@ -124,7 +133,7 @@ thread_local! {
 impl Media {
     /// Called from `setup`, which runs on the main thread.
     pub fn spawn(app: AppHandle) -> Self {
-        #[cfg(all(desktop, not(target_os = "macos")))]
+        #[cfg(all(desktop, not(any(target_os = "macos", windows))))]
         {
             let (tx, rx) = std::sync::mpsc::channel::<MediaCmd>();
             std::thread::Builder::new()
@@ -141,7 +150,7 @@ impl Media {
                 .expect("failed to start media thread");
             Self { tx }
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         {
             let controls = desktop::create(&app);
             CONTROLS.with(|c| *c.borrow_mut() = controls);
@@ -154,11 +163,11 @@ impl Media {
     }
 
     pub fn send(&self, cmd: MediaCmd) {
-        #[cfg(all(desktop, not(target_os = "macos")))]
+        #[cfg(all(desktop, not(any(target_os = "macos", windows))))]
         {
             let _ = self.tx.send(cmd);
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         {
             let _ = self.app.run_on_main_thread(move || {
                 CONTROLS.with(|c| {

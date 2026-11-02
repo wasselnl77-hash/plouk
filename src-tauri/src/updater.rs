@@ -2,9 +2,10 @@
 //! version. On computers, Tauri's updater downloads the build for this install
 //! and checks it against Plouk's update key before touching anything. An
 //! AppImage or Mac app is swapped in place right away and the next launch is the
-//! new version; a .deb needs the system password, so it waits for the user to
-//! say when. On Android the new APK is downloaded and handed to the system
-//! installer, which only accepts it if it's signed with the same key.
+//! new version; a .deb needs the system password and the Windows installer
+//! closes Plouk, so those wait for the user to say when. On Android the new APK
+//! is downloaded and handed to the system installer, which only accepts it if
+//! it's signed with the same key.
 
 use serde::Serialize;
 #[cfg(target_os = "android")]
@@ -50,7 +51,10 @@ mod desktop {
         };
         let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
         let version = update.version.clone();
-        let in_place = !matches!(tauri::utils::platform::bundle_type(), Some(tauri::utils::config::BundleType::Deb));
+        // An AppImage or Mac app can be swapped while running. A .deb needs the password and the
+        // Windows installer closes Plouk, so those wait for the user.
+        let in_place = cfg!(target_os = "macos")
+            || matches!(tauri::utils::platform::bundle_type(), Some(tauri::utils::config::BundleType::AppImage));
         if in_place {
             update.install(&bytes).map_err(|e| e.to_string())?;
         } else {

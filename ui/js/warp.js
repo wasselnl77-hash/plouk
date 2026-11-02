@@ -183,6 +183,7 @@ export class Warp {
 
   async open(card, reveal = []) {
     if (this.simple || reduced.matches) {
+      this.mode = 'fade';
       card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out', fill: 'forwards' });
       return;
     }
@@ -220,7 +221,8 @@ export class Warp {
   }
 
   async close(card) {
-    if (this.simple) {
+    // Undo what open() did, even if the setting changed while the panel was open (lite mode lives in it).
+    if (this.mode === 'fade') {
       return card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-in', fill: 'forwards' }).finished.catch(() => {});
     }
     this.emerge?.cancel();
@@ -231,7 +233,6 @@ export class Warp {
       ],
       { duration: 260, easing: 'cubic-bezier(.5,0,.9,.5)', fill: 'forwards' }
     );
-    if (reduced.matches) return away.finished.catch(() => {});
     if (this.mode === 'gpu') {
       const done = await this.animateTo(0, 620, ease.inOutCubic);
       if (!done) return;

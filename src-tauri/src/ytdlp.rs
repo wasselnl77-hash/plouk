@@ -174,7 +174,7 @@ fn maybe_update(yt: &YtDlp, bin: PathBuf) {
     }
     let _ = std::fs::write(&stamp, b"");
     tokio::spawn(async move {
-        let out = Command::new(&bin).arg("-U").stdin(Stdio::null()).output().await;
+        let out = command(&bin).arg("-U").stdin(Stdio::null()).output().await;
         if let Ok(o) = out {
             eprintln!("[plouk] yt-dlp update: {}", String::from_utf8_lossy(&o.stdout).trim());
         }
@@ -188,7 +188,7 @@ fn binary(yt: &YtDlp) -> Result<PathBuf, String> {
 /// Runs yt-dlp's self-update right now and reports the resulting version.
 pub async fn update_now(r: &Resolver, app: &AppHandle) -> Result<String, String> {
     let bin = binary(&r.yt)?;
-    run(Command::new(&bin).arg("-U"), 180).await?;
+    run(command(&bin).arg("-U"), 180).await?;
     let version = version_of(&bin).await?;
     let _ = std::fs::write(r.yt.bin_dir.join("last-update"), b"");
     r.set_state(app, EngineState::Ready { version: version.clone() });
@@ -216,7 +216,7 @@ pub async fn fetch(r: &Resolver, t: &TrackReq) -> Result<PathBuf, String> {
 
     // 2) Fall back to a scored regular YouTube search.
     let search = format!("ytsearch8:{artist} - {}", t.title);
-    let out = run(Command::new(&bin).args(["--flat-playlist", "-J", "--no-warnings"]).args(r.yt.js_args()).arg(&search), 60).await?;
+    let out = run(command(&bin).args(["--flat-playlist", "-J", "--no-warnings"]).args(r.yt.js_args()).arg(&search), 60).await?;
     let v: Value = serde_json::from_str(&out).map_err(|_| "Unexpected search result")?;
     let best = v["entries"]
         .as_array()
@@ -231,7 +231,7 @@ pub async fn fetch(r: &Resolver, t: &TrackReq) -> Result<PathBuf, String> {
 
 async fn grab(r: &Resolver, bin: &Path, url: &str, id: &str, search: bool) -> Result<(PathBuf, Option<f64>), String> {
     let template = r.cache_dir.join(format!("{id}.%(ext)s"));
-    let mut cmd = Command::new(bin);
+    let mut cmd = command(bin);
     cmd.args(["--no-progress", "--no-warnings", "--no-mtime", "-f", "bestaudio[ext=m4a]/bestaudio"])
         .arg("-o")
         .arg(&template)
@@ -303,11 +303,20 @@ async fn run(cmd: &mut Command, timeout_secs: u64) -> Result<String, String> {
 }
 
 async fn version_of(bin: &Path) -> Result<String, String> {
-    let out = run(Command::new(bin).arg("--version"), 30).await?;
+    let out = run(command(bin).arg("--version"), 30).await?;
     Ok(out.trim().to_string())
 }
 
 fn which(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path).map(|d| d.join(format!("{name}{EXE}"))).find(|p| p.is_file())
+}
+
+/// A child process that doesn't flash a console window on Windows.
+fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    cmd
 }
