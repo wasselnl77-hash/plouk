@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   closeAction: 'tray',
   startHidden: false,
   warp: true,
+  lite: null, // null: on for phones, off for computers (decided at startup)
   autoUpdate: true,
   cacheLimitGB: 5,
 };
@@ -98,7 +99,7 @@ export class Options {
     });
     this.renderXf = renderXf;
     // On/off settings, re-read from S.settings every time the panel opens (see refresh).
-    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp' };
+    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp', oLite: 'lite' };
     this.flags = Object.entries(flags).map(([id, key]) => [key, toggle($(id), S.settings[key], (v) => ctx.setSetting(key, v))]);
     this.launchVol = segmented(
       $('oLaunchVol'),

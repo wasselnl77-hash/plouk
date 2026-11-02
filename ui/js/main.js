@@ -74,8 +74,14 @@ function applySettings() {
   invoke('audio_normalize', { on: !!st.normalize }).catch(() => {});
   invoke('set_close_to_tray', { on: st.closeAction !== 'quit' }).catch(() => {});
   invoke('set_cache_limit', { bytes: (st.cacheLimitGB || 0) * 2 ** 30 }).catch(() => {});
-  // Phones flicker under the warp, so there the options always just fade.
-  warp.simple = !!PLAT.mobile || st.warp === false;
+  // Lite mode: lighter glow, no glass blur, no warp, a still halo. Phones flicker under the warp regardless.
+  const lite = !!st.lite;
+  app.classList.toggle('lite', lite);
+  warp.simple = lite || !!PLAT.mobile || st.warp === false;
+  if (ambient.lite !== lite) {
+    ambient.lite = lite;
+    ambient.resize();
+  }
 }
 
 function setSetting(key, value) {
@@ -786,7 +792,7 @@ function frame() {
   breath += (breathTarget - breath) * (breathTarget > breath ? 0.3 : 0.06);
   if (!playing) breathTarget *= 0.9;
   // Set the halo directly (a CSS variable on #deck restyled the whole deck every frame).
-  if (Math.abs(breath - drawnBreath) > 0.002) {
+  if (!ambient.lite && Math.abs(breath - drawnBreath) > 0.002) {
     drawnBreath = breath;
     halo.style.opacity = (0.38 + breath * 0.5).toFixed(3);
     halo.style.transform = `scale(${(0.96 + breath * 0.05).toFixed(4)})`;
@@ -1182,13 +1188,10 @@ async function boot() {
   app.classList.toggle('mobile', !!PLAT.mobile);
   if (isMac()) document.querySelectorAll('kbd').forEach((k) => k.textContent === 'Ctrl' && (k.textContent = '⌘'));
   if (PLAT.mobile) setupSheet();
-  if (PLAT.mobile) {
-    ambient.lite = true;
-    ambient.resize();
-  }
   const saved = await invoke('load_state').catch(() => null);
   if (saved && saved.v === 1) Object.assign(S, saved, { muted: false });
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };
+  if (S.settings.lite == null) S.settings.lite = !!PLAT.mobile;
   if (S.settings.launchVolume !== 'last') S.volume = S.settings.launchVolume;
   applySettings();
   setLoop(S.loop);

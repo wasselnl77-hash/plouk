@@ -1558,12 +1558,12 @@ kbd {
    again on every frame bought nothing visible. They keep the saturation lift, which is cheap. */
 .sidebar.glass, .panel.glass, .titlebar { backdrop-filter: saturate(170%); -webkit-backdrop-filter: saturate(170%); }
 
-/* Live blur over the moving glow re-renders every frame, which phones can't keep up with.
-   They get a denser tint instead, which reads almost the same on the dark background. */
-.mobile { --glass-fill: rgba(20, 20, 26, 0.74); }
-.mobile *,
-.mobile *::before,
-.mobile *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+/* Lite mode (Options → Playback; on by default on phones): live blur over the moving glow
+   re-renders every frame, so slower devices get a denser tint instead. */
+.lite { --glass-fill: rgba(20, 20, 26, 0.74); }
+.lite *,
+.lite *::before,
+.lite *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
 @media (max-width: 760px) {
   #app { display: flex; flex-direction: column; gap: 0; padding: 0; }

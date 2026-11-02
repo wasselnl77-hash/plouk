@@ -173,7 +173,7 @@ export class Ambient {
     const w = this.bg.clientWidth || window.innerWidth;
     const h = this.bg.clientHeight || window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
-    // Phones (lite) draw the soft glow much smaller; it's blurry anyway and their GPUs are not.
+    // Lite mode draws the soft glow much smaller; it's blurry anyway.
     // The glow is soft, so a small buffer scaled up looks the same.
     const bgScale = this.lite ? 0.25 : 0.4;
     this.bg.width = Math.max(2, Math.round(w * bgScale));
@@ -225,8 +225,8 @@ export class Ambient {
     this.frame++;
     const now = this.time();
     const active = this.ripples.length > 0 || this.drag > 0.01 || this.dragTarget > 0;
-    // The glow moves slowly: 30 fps is plenty unless ripples run, and 15 while the music is paused.
-    if (!active && this.frame % (this.calm ? 4 : this.lite ? 3 : 2)) return;
+    // The glow moves slowly: 30 fps is plenty unless ripples run, 15 while paused, less in lite mode.
+    if (!active && this.frame % (this.lite ? (this.calm ? 6 : 4) : this.calm ? 4 : 2)) return;
 
     const k = Math.min(1, (performance.now() - this.mixStart) / 1800);
     const e = k * k * (3 - 2 * k);
