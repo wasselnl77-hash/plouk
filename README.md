@@ -83,12 +83,12 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.3.1-linux-amd64.deb
+sudo apt install ./plouk-0.3.2-linux-amd64.deb
 ```
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
 
-**Windows.** Run `plouk-0.3.1-windows-x64-setup.exe`. The installer isn't
+**Windows.** Run `plouk-0.3.2-windows-x64-setup.exe`. The installer isn't
 signed yet, so Windows SmartScreen may warn you: click **More info**, then
 **Run anyway**. Windows 10 and 11 are supported.
 

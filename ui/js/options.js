@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   startHidden: false,
   warp: true,
   discord: false, // sharing what you listen to is opt-in
+  texture: true,
   lite: null, // null: on for phones, off for computers (decided at startup)
   autoUpdate: true,
   cacheLimitGB: 5,
@@ -100,7 +101,7 @@ export class Options {
     });
     this.renderXf = renderXf;
     // On/off settings, re-read from S.settings every time the panel opens (see refresh).
-    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp', oLite: 'lite', oDiscord: 'discord' };
+    const flags = { oNorm: 'normalize', oAutoplay: 'autoplay', oAutoUpdate: 'autoUpdate', oWarp: 'warp', oLite: 'lite', oDiscord: 'discord', oTexture: 'texture' };
     this.flags = Object.entries(flags).map(([id, key]) => [key, toggle($(id), S.settings[key], (v) => ctx.setSetting(key, v))]);
     $('oFmBtn').addEventListener('click', () => this.lastfmClick());
     this.launchVol = segmented(

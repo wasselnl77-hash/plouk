@@ -8,7 +8,7 @@ use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU32, Ordering::Relaxed},
+        atomic::{AtomicU32, AtomicU64, Ordering::Relaxed},
         mpsc, Arc,
     },
     thread,
@@ -240,6 +240,8 @@ struct Deck {
     /// Loudness correction (linear); fades in once the song has been measured.
     norm: Ramp,
     norm_pending: bool,
+    /// Where we are in the song, in seconds (f64 bits), kept by the pitch stage at any speed.
+    position: Arc<AtomicU64>,
 }
 
 struct Audio {
@@ -352,7 +354,8 @@ impl Audio {
             .map_err(|_| "Couldn't decode this audio file".to_string())??;
         let duration = decoder.total_duration().map(|d| d.as_secs_f64()).unwrap_or(0.0);
         let levels = Arc::new(Levels::default());
-        let source = Pitch::new(Meter::new(decoder, levels.clone()), self.pitch.clone());
+        let position = Arc::new(AtomicU64::new(0f64.to_bits()));
+        let source = Pitch::new(Meter::new(decoder, levels.clone()), self.pitch.clone(), position.clone());
         let sink = Sink::try_new(&handle).map_err(|e| format!("Audio output error: {e}"))?;
         sink.set_volume(0.0);
         sink.append(source);
@@ -364,7 +367,7 @@ impl Audio {
             loudness::spawn(&path);
         }
         let norm = Ramp::hold(measured.map(db_to_gain).unwrap_or(1.0));
-        Ok(Deck { id, sink, levels, duration, gain, retiring: false, path, norm, norm_pending: measured.is_none() })
+        Ok(Deck { id, sink, levels, duration, gain, retiring: false, path, norm, norm_pending: measured.is_none(), position })
     }
 
     fn retire_all(&mut self, len: Duration, shape: Shape, now: Instant) {
@@ -508,7 +511,7 @@ impl Audio {
                 let (level, bass) = if self.playing { d.levels.read() } else { (0.0, 0.0) };
                 let tick = Tick {
                     deck: d.id,
-                    pos: d.sink.get_pos().as_secs_f64(),
+                    pos: f64::from_bits(d.position.load(Relaxed)),
                     dur: d.duration,
                     playing: self.playing,
                     level,

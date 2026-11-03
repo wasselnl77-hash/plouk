@@ -69,6 +69,7 @@ tt.onScrub = (p, final) => {
 const queue = new Queue($('queueList'), $('queueHead'), { onPick: (i) => playIndex(i) });
 const lyrics = new Lyrics($('lyricsView'), $('lyrics'), { onSeek: (t) => seekTo(t) });
 const warp = new Warp($('warp'), ambient);
+warp.turntable = tt; // lets the warp keep the record turning (see warp.js)
 
 // ------------------------------------------------------------------ settings
 
@@ -81,6 +82,7 @@ function applySettings() {
   // Lite mode: lighter glow, no glass blur, no warp, a still halo. Phones flicker under the warp regardless.
   const lite = !!st.lite;
   app.classList.toggle('lite', lite);
+  app.classList.toggle('no-texture', st.texture === false);
   warp.simple = lite || !!PLAT.mobile || st.warp === false;
   if (ambient.lite !== lite) {
     ambient.lite = lite;

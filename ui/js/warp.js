@@ -2,6 +2,9 @@
 // and bends outward while a radial zoom blur streaks everything from the centre,
 // and the options panel comes through it. Plouk snapshots its own window (Rust)
 // and warps that image on the GPU; without a snapshot it falls back to CSS.
+// The record keeps turning inside the snapshot (the shader rotates its circle by
+// however far the real one has turned, leaving the tonearm alone), so when the
+// options close it lines up with the live record again.
 
 import { invoke } from './api.js';
 import { tween, ease } from './motion.js';
@@ -16,11 +19,33 @@ precision highp float;
 uniform sampler2D uTex;
 uniform vec2 uRes;
 uniform float uAmt, uTime, uOpaque;
+uniform vec3 uDisc;   // record centre and radius (x in aspect units, y up)
+uniform float uSpin;  // how far the record has turned since the snapshot (radians, clockwise)
+uniform vec2 uArm[6]; // tonearm and its shadow: two 3-point polylines, same units
+uniform vec2 uArmW;   // their half widths
 varying vec2 vUv;
+
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  float t = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0);
+  return length(p - a - ab * t);
+}
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 vec4 snap(vec2 uv) {
+  if (uSpin != 0.0) {
+    float asp = uRes.x / uRes.y;
+    vec2 q = vec2(uv.x * asp, uv.y);
+    vec2 rel = q - uDisc.xy;
+    float arm = min(min(segDist(q, uArm[0], uArm[1]), segDist(q, uArm[1], uArm[2])) - uArmW.x,
+                    min(segDist(q, uArm[3], uArm[4]), segDist(q, uArm[4], uArm[5])) - uArmW.y);
+    if (length(rel) < uDisc.z && arm > 0.0) {
+      float c = cos(uSpin), s = sin(uSpin);
+      q = uDisc.xy + vec2(c * rel.x - s * rel.y, s * rel.x + c * rel.y);
+      uv = vec2(q.x / asp, q.y);
+    }
+  }
   vec4 c = texture2D(uTex, vec2(uv.x, 1.0 - uv.y)).bgra;
   c.a = mix(c.a, 1.0, uOpaque);
   float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
@@ -96,7 +121,9 @@ export class Warp {
       const loc = gl.getAttribLocation(p, 'a');
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      this.u = Object.fromEntries(['uTex', 'uRes', 'uAmt', 'uTime', 'uOpaque'].map((n) => [n, gl.getUniformLocation(p, n)]));
+      this.u = Object.fromEntries(
+        ['uTex', 'uRes', 'uAmt', 'uTime', 'uOpaque', 'uDisc', 'uSpin', 'uArm', 'uArmW'].map((n) => [n, gl.getUniformLocation(p, n)])
+      );
       this.tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -116,7 +143,9 @@ export class Warp {
     // Let a closing menu finish fading so it isn't frozen into the picture.
     for (let i = 0; i < 10 && document.querySelector('.dropdown.open'); i++) await wait(30);
     try {
+      const angleBefore = this.turntable?.angle ?? 0;
       const buf = await invoke('capture_window');
+      this.measureRecord(angleBefore);
       if (!(buf instanceof ArrayBuffer) || buf.byteLength < 12) return false;
       const head = new DataView(buf, 0, 12);
       const w = head.getUint32(0, true);
@@ -132,6 +161,36 @@ export class Warp {
       console.info('[plouk] no window snapshot, using the CSS warp:', e);
       return false;
     }
+  }
+
+  /** Where the record and tonearm are in the snapshot, so the shader can keep the record turning. */
+  measureRecord(angleBefore) {
+    const tt = this.turntable;
+    const slot = document.getElementById('recordSlot')?.getBoundingClientRect();
+    const arm = document.getElementById('arm');
+    const shadow = document.getElementById('armShadow');
+    if (!tt || !slot || !slot.width || !arm?.getScreenCTM()) {
+      this.recordAngle = null;
+      return;
+    }
+    // The capture happened somewhere between these two moments; split the difference.
+    let after = tt.angle;
+    if (after < angleBefore) after += 360;
+    this.recordAngle = (angleBefore + after) / 2;
+    const W = innerWidth, H = innerHeight, asp = W / H;
+    const uv = (x, y) => [(x / W) * asp, 1 - y / H];
+    const gl = this.gl;
+    gl.uniform3f(this.u.uDisc, ...uv(slot.left + slot.width / 2, slot.top + slot.height / 2), (slot.width / 2 / H) * 0.995);
+    const line = (el) => {
+      const m = el.getScreenCTM();
+      return [[0, -10], [0, 640], [-48, 760]].flatMap(([x, y]) => {
+        const p = new DOMPoint(x, y).matrixTransform(m);
+        return uv(p.x, p.y);
+      });
+    };
+    gl.uniform2fv(this.u.uArm, new Float32Array([...line(arm), ...line(shadow)]));
+    const unit = Math.hypot(arm.getScreenCTM().a, arm.getScreenCTM().b) / H; // one arm unit, in screen heights
+    gl.uniform2f(this.u.uArmW, 40 * unit, 46 * unit);
   }
 
   /** Drops the window snapshot and shrinks the canvas, so nothing big stays in memory while closed. */
@@ -158,6 +217,8 @@ export class Warp {
     gl.uniform2f(this.u.uRes, w, h);
     gl.uniform1f(this.u.uAmt, this.amt);
     gl.uniform1f(this.u.uTime, (performance.now() - this.t0) / 1000);
+    const spin = this.recordAngle == null ? 0 : (((this.turntable.angle - this.recordAngle) % 360) + 360) % 360;
+    gl.uniform1f(this.u.uSpin, (spin * Math.PI) / 180);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -165,8 +226,9 @@ export class Warp {
     let frame = 0;
     const loop = () => {
       if (!this.live) return;
-      // Full rate while moving, a third for the gentle drift while held open.
-      if (this.moving || frame++ % 3 === 0) this.draw();
+      // Full rate while moving; held open, half rate while the record turns, a third otherwise.
+      const turning = this.recordAngle != null && this.turntable.omega > 1;
+      if (this.moving || frame++ % (turning ? 2 : 3) === 0) this.draw();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

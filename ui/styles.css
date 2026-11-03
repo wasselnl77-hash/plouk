@@ -168,8 +168,10 @@ svg { display: block; }
   mask: url('leopard.svg') 0 0 / 320px 320px repeat;
   opacity: 0.05;
   pointer-events: none;
-  transition: background 1.2s;
+  transition: background 1.2s, opacity 0.4s;
 }
+.no-texture .sidebar::after,
+.no-texture .panel::after { opacity: 0; }
 
 /* ------------------------------------------------------------------ sidebar */
 

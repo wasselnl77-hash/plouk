@@ -1,12 +1,16 @@
 //! The pitch control, with Signalsmith Stretch. It shifts pitch without
-//! touching the tempo (as many samples come out as go in), so the song
-//! position and lyrics stay right; the turntable-style speed is applied after
-//! it, by the sink. At 0 semitones the audio passes straight through and the
-//! stretcher isn't even created.
+//! touching the tempo (as many samples come out as go in); the turntable-style
+//! speed is applied after it, by the sink. At 0 semitones the audio passes
+//! straight through and the stretcher isn't even created.
+//!
+//! It also keeps the song position. rodio's own `get_pos` is measured after
+//! the speed stage, so with the speed changed it drifts away from the song (and
+//! the lyrics with it). Here every sample of the song goes past, so counting
+//! them gives the real position at any speed.
 
 use std::{
     sync::{
-        atomic::{AtomicU32, Ordering::Relaxed},
+        atomic::{AtomicU32, AtomicU64, Ordering::Relaxed},
         Arc,
     },
     time::Duration,
@@ -24,6 +28,11 @@ pub struct Pitch<S> {
     inner: S,
     /// Semitones as f32 bits, shared with the engine.
     shift: Arc<AtomicU32>,
+    /// Song position in seconds (f64 bits), read by the engine.
+    position: Arc<AtomicU64>,
+    /// Samples read from the song so far, counted from `base`.
+    consumed: u64,
+    base: f64,
     stretch: Option<Stretch>,
     active: bool,
     current: f32,
@@ -37,12 +46,15 @@ pub struct Pitch<S> {
 }
 
 impl<S: Source<Item = f32>> Pitch<S> {
-    pub fn new(inner: S, shift: Arc<AtomicU32>) -> Self {
+    pub fn new(inner: S, shift: Arc<AtomicU32>, position: Arc<AtomicU64>) -> Self {
         let channels = inner.channels().max(1) as usize;
         let rate = inner.sample_rate().max(1);
         Self {
             inner,
             shift,
+            position,
+            consumed: 0,
+            base: 0.0,
             stretch: None,
             active: false,
             current: 0.0,
@@ -67,6 +79,9 @@ impl<S: Source<Item = f32>> Pitch<S> {
         }
         let frames = self.input.len() / self.channels;
         self.input.truncate(frames * self.channels);
+        self.consumed += self.input.len() as u64;
+        let secs = self.base + self.consumed as f64 / (self.rate as f64 * self.channels as f64);
+        self.position.store(secs.to_bits(), Relaxed);
         self.output.clear();
         self.out_pos = 0;
 
@@ -146,6 +161,9 @@ impl<S: Source<Item = f32>> Source for Pitch<S> {
     }
     fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
         self.inner.try_seek(pos)?;
+        self.base = pos.as_secs_f64();
+        self.consumed = 0;
+        self.position.store(self.base.to_bits(), Relaxed);
         // Start fresh from the new spot; the stretcher re-primes on the next block if needed.
         self.output.clear();
         self.out_pos = 0;
@@ -172,7 +190,7 @@ mod tests {
 
     fn run(semitones: f32) -> (usize, f32) {
         let tone = SineWave::new(440.0).take_duration(Duration::from_secs(2));
-        let out: Vec<f32> = Pitch::new(tone, Arc::new(AtomicU32::new(semitones.to_bits()))).collect();
+        let out: Vec<f32> = Pitch::new(tone, Arc::new(AtomicU32::new(semitones.to_bits())), Default::default()).collect();
         (out.len(), freq(&out, 48_000.0))
     }
 
