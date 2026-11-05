@@ -83,12 +83,21 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.3.2-linux-amd64.deb
+sudo apt install ./plouk-0.3.3-linux-amd64.deb
 ```
+
+On openSUSE or Fedora, grab the `.rpm`. It isn't signed by a repository, so
+openSUSE needs to be told that's okay:
+
+```bash
+sudo zypper install --allow-unsigned-rpm ./plouk-0.3.3-linux-x86_64.rpm
+```
+
+On Fedora it's `sudo dnf install ./plouk-0.3.3-linux-x86_64.rpm`.
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
 
-**Windows.** Run `plouk-0.3.2-windows-x64-setup.exe`. The installer isn't
+**Windows.** Run `plouk-0.3.3-windows-x64-setup.exe`. The installer isn't
 signed yet, so Windows SmartScreen may warn you: click **More info**, then
 **Run anyway**. Windows 10 and 11 are supported.
 
@@ -157,8 +166,8 @@ On a Mac, use ⌘ instead of Ctrl.
 
 - Spotify's public page only shows the first 100 songs of a playlist, and
   private playlists can't be read.
-- We build and test Plouk on Linux Mint (Cinnamon, X11) and on Android, phone
-  and tablet sizes. The Windows and Mac versions are built on GitHub's
+- We build and test Plouk on openSUSE Tumbleweed (KDE, Wayland), Linux Mint
+  (Cinnamon, X11) and on Android, phone and tablet sizes. The Windows and Mac versions are built on GitHub's
   machines, but we haven't had a real Windows PC or Mac to try them on yet.
   If something's off there, tell us.
 - On Wayland the options animation falls back to a simpler version.
