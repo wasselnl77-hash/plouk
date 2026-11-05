@@ -73,9 +73,11 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           if [ "$RUNNER_OS" = "Linux" ]; then
             cp src-tauri/target/release/bundle/deb/*.deb "out/plouk-${VERSION}-linux-amd64.deb"
+            cp src-tauri/target/release/bundle/rpm/*.rpm "out/plouk-${VERSION}-linux-x86_64.rpm"
             cp src-tauri/target/release/bundle/appimage/*.AppImage "out/plouk-${VERSION}-linux-x86_64.AppImage"
             # Update signatures (see the manifest job)
             for f in src-tauri/target/release/bundle/deb/*.deb.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-amd64.deb.sig"; done
+            for f in src-tauri/target/release/bundle/rpm/*.rpm.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-x86_64.rpm.sig"; done
             for f in src-tauri/target/release/bundle/appimage/*.AppImage.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-linux-x86_64.AppImage.sig"; done
           elif [ "$RUNNER_OS" = "Windows" ]; then
             B=src-tauri/target/release/bundle/nsis
@@ -89,6 +91,13 @@ jobs:
             for f in $B/macos/*.app.tar.gz.sig; do [ -e "$f" ] && cp "$f" "out/plouk-${VERSION}-macos-universal.app.tar.gz.sig"; done
           fi
           ls -la out
+
+      # Test runs keep the Linux packages, to try them before tagging a release.
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux' && !startsWith(github.ref, 'refs/tags/')
+        with:
+          name: linux-packages
+          path: out/*
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -186,6 +195,7 @@ jobs:
           def entry(name):
               return {"signature": open(f"sigs/{name}.sig").read().strip(), "url": f"{base}/{name}"}
           deb = entry(f"plouk-{version}-linux-amd64.deb")
+          rpm = entry(f"plouk-{version}-linux-x86_64.rpm")
           appimage = entry(f"plouk-{version}-linux-x86_64.AppImage")
           mac = entry(f"plouk-{version}-macos-universal.app.tar.gz")
           windows = entry(f"plouk-{version}-windows-x64-setup.exe")
@@ -194,6 +204,7 @@ jobs:
               "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
               "platforms": {
                   "linux-x86_64-deb": deb,
+                  "linux-x86_64-rpm": rpm,
                   "linux-x86_64-appimage": appimage,
                   "linux-x86_64": appimage,
                   "darwin-aarch64": mac,
