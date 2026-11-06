@@ -1,7 +1,13 @@
 name: Release
 
-# Builds Plouk for Linux, macOS and Android whenever a version tag is pushed,
-# and attaches everything to the GitHub release for that tag.
+# Builds Plouk for Linux, Windows, macOS and Android whenever a version tag is pushed.
+#
+# The release is a DRAFT until the very end: one job creates it, every build uploads into it,
+# and only the last step of the manifest job (after latest.json and SHA256SUMS.txt are on it)
+# makes it public. If any build fails or is cancelled the release simply stays a draft and
+# nothing public changes (the "latest" release, and so the update check, is untouched).
+# Draft releases are not returned by releases/tags/<tag> or served at public download URLs,
+# so all of that goes through .github/scripts/release.sh, by release id and the API.
 on:
   push:
     tags: ["v*"]
@@ -11,8 +17,28 @@ permissions:
   contents: write
 
 jobs:
+  # Creates the draft once, so the parallel build jobs don't each create their own.
+  draft:
+    name: Draft release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v5
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          sparse-checkout: .github/scripts
+      - name: Create the draft
+        id: create
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: echo "id=$(bash .github/scripts/release.sh create)" >> "$GITHUB_OUTPUT"
+
   desktop:
     name: ${{ matrix.name }}
+    needs: draft
     strategy:
       fail-fast: false
       matrix:
@@ -99,13 +125,18 @@ jobs:
           name: linux-packages
           path: out/*
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload to the draft release
         if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: out/*
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.draft.outputs.release_id }}
+        run: bash .github/scripts/release.sh upload out/*
 
   android:
     name: Android
+    needs: draft
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -170,30 +201,49 @@ jobs:
           cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release*.apk "out/plouk-${VERSION}-android.apk"
           ls -la out
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload to the draft release
         if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: out/*
-
-  # latest.json is what installed copies check (see src-tauri/src/updater.rs). It goes up last,
-  # once every platform's files are on the release, so nobody is pointed at a file that isn't there yet.
-  manifest:
-    name: Update manifest
-    needs: [desktop, android]
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Write and upload latest.json
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.draft.outputs.release_id }}
+        run: bash .github/scripts/release.sh upload out/*
+
+  # latest.json is what installed copies check (see src-tauri/src/updater.rs). Once every
+  # platform's files are on the draft, this job adds latest.json and SHA256SUMS.txt and then, as
+  # its very last step, publishes the release. It only runs if every build succeeded.
+  manifest:
+    name: Update manifest
+    needs: [draft, desktop, android]
+    if: success() && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_ID: ${{ needs.draft.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+
+      # The draft is not public: fetch its files through the API, not from download URLs.
+      - name: Download the draft's files
+        run: bash .github/scripts/release.sh download assets
+
+      - name: Write latest.json
         run: |
-          gh release download "$GITHUB_REF_NAME" -p '*.sig' -D sigs
-          python3 - "${GITHUB_REF_NAME#v}" "https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME" <<'EOF'
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in \
+            "plouk-${VERSION}-linux-amd64.deb" "plouk-${VERSION}-linux-x86_64.rpm" "plouk-${VERSION}-linux-x86_64.AppImage" \
+            "plouk-${VERSION}-macos-universal.dmg" "plouk-${VERSION}-macos-universal.app.tar.gz" \
+            "plouk-${VERSION}-windows-x64-setup.exe" "plouk-${VERSION}-android.apk"; do
+            [ -s "assets/$f" ] || { echo "::error::$f is missing from the draft release"; exit 1; }
+          done
+          python3 - "$VERSION" "https://github.com/$GH_REPO/releases/download/$GITHUB_REF_NAME" <<'EOF'
           import datetime, json, sys
           version, base = sys.argv[1:]
           def entry(name):
-              return {"signature": open(f"sigs/{name}.sig").read().strip(), "url": f"{base}/{name}"}
+              return {"signature": open(f"assets/{name}.sig").read().strip(), "url": f"{base}/{name}"}
           deb = entry(f"plouk-{version}-linux-amd64.deb")
           rpm = entry(f"plouk-{version}-linux-x86_64.rpm")
           appimage = entry(f"plouk-{version}-linux-x86_64.AppImage")
@@ -214,4 +264,19 @@ jobs:
           }, open("latest.json", "w"), indent=2)
           EOF
           cat latest.json
-          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+          cp latest.json assets/latest.json
+
+      # Checksums of every file on the release (check them with `sha256sum -c SHA256SUMS.txt`).
+      - name: Write SHA256SUMS.txt
+        run: |
+          cd assets
+          rm -f SHA256SUMS.txt
+          find . -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort | xargs -d '\n' sha256sum > ../SHA256SUMS.txt
+          cat ../SHA256SUMS.txt
+
+      - name: Upload latest.json and SHA256SUMS.txt
+        run: bash .github/scripts/release.sh upload latest.json SHA256SUMS.txt
+
+      # Last step: from here on the release is public and the update check sees it.
+      - name: Publish the release
+        run: bash .github/scripts/release.sh publish

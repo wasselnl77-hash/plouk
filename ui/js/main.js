@@ -28,6 +28,7 @@ const S = {
   muted: false,
   crossfade: 6,
   loop: 'off', // 'off' | 'all' (the playlist) | 'one' (the song)
+  shuffle: false, // play order only; the list on screen keeps its order
   rate: 1,
   pitch: 0, // semitones, on top of the speed
   keepPitch: false, // cancel out the pitch change that speed brings
@@ -44,6 +45,7 @@ let pos = 0;
 let playToken = 0;
 let xfStarted = false;
 let failStreak = 0;
+let autoplayIntent = false; // the current song is playing, or is about to
 let lastMediaPush = 0;
 const prepared = new Map(); // track id -> local path
 const preparing = new Map(); // track id -> Promise<path>
@@ -66,7 +68,11 @@ tt.onScrub = (p, final) => {
   if (final) seekTo(p * d);
 };
 
-const queue = new Queue($('queueList'), $('queueHead'), { onPick: (i) => playIndex(i) });
+const queue = new Queue($('queueList'), $('queueHead'), {
+  onPick: (i) => playIndex(i),
+  onMove: (from, to) => moveTrack(from, to),
+  onMenu: (i, x, y) => openRowMenu(i, x, y),
+});
 const lyrics = new Lyrics($('lyricsView'), $('lyrics'), { onSeek: (t) => seekTo(t) });
 const warp = new Warp($('warp'), ambient);
 warp.turntable = tt; // lets the warp keep the record turning (see warp.js)
@@ -120,6 +126,104 @@ $('loopBtn').addEventListener('click', () => {
   setLoop(LOOPS[(LOOPS.indexOf(S.loop) + 1) % LOOPS.length]);
   toast(LOOP_SAY[S.loop], 'info', { id: 'loop' });
 });
+
+// Shuffle only changes the order songs are played in, never the list. Everything is tracked by
+// each song's own key (`k`, so a song that appears twice in a playlist is two songs), never by
+// position, so moving or removing songs in the list cannot point it at the wrong one.
+//   hist/hp  what was actually played, and where we are in it (Previous walks back through it)
+//   heard    songs already played in this round; a song repeats only once all have played
+//   up       songs the user sent to "Play next", used before any random pick
+//   pick     the random song chosen to follow this one, decided once so that preparing it,
+//            the crossfade and the Next button all agree on the same song
+let sh = { colId: null, hist: [], hp: -1, heard: new Set(), up: [], pick: null };
+const newKey = () => Math.random().toString(36).slice(2, 9);
+const ensureKeys = (col) => col.tracks.forEach((t) => (t.k ||= newKey()));
+
+function shReset() {
+  const k = currentTrack()?.k;
+  sh = { colId: S.currentId, hist: k ? [k] : [], hp: k ? 0 : -1, heard: new Set(k ? [k] : []), up: [], pick: null };
+}
+
+/** A song started playing (by any route). */
+function shNote(key) {
+  if (sh.colId !== S.currentId) shReset();
+  if (sh.pick?.fresh && sh.pick.k === key) sh.heard.clear(); // a new round begins
+  sh.heard.add(key);
+  sh.up = sh.up.filter((k) => k !== key);
+  sh.pick = null;
+  if (sh.hist[sh.hp] === key) return;
+  if (sh.hist[sh.hp + 1] === key) sh.hp++;
+  else if (sh.hp > 0 && sh.hist[sh.hp - 1] === key) sh.hp--;
+  else {
+    sh.hist.length = sh.hp + 1;
+    sh.hist.push(key);
+    sh.hp++;
+    if (sh.hist.length > 300) {
+      sh.hist.shift();
+      sh.hp--;
+    }
+  }
+}
+
+/** A song left the list. */
+function shForget(key) {
+  for (let i = sh.hist.length - 1; i >= 0; i--) {
+    if (sh.hist[i] !== key) continue;
+    sh.hist.splice(i, 1);
+    if (i <= sh.hp) sh.hp--;
+  }
+  sh.up = sh.up.filter((k) => k !== key);
+  if (sh.pick?.k === key) sh.pick = null;
+}
+
+/** The index of the song that follows in shuffle order, or -1. */
+function shuffleNext(col) {
+  if (sh.colId !== S.currentId) shReset();
+  const cur = currentTrack()?.k;
+  const at = (k) => col.tracks.findIndex((t) => t.k === k);
+  const again = sh.hist[sh.hp + 1]; // after going back, Next replays what came next
+  if (again) {
+    const i = at(again);
+    if (i >= 0) return i;
+  }
+  while (sh.up.length) {
+    const i = at(sh.up[0]);
+    if (i >= 0 && sh.up[0] !== cur) return i;
+    sh.up.shift();
+  }
+  if (sh.pick) {
+    const i = at(sh.pick.k);
+    if (i >= 0) return i;
+    sh.pick = null;
+  }
+  let pool = col.tracks.filter((t) => !sh.heard.has(t.k) && t.k !== cur);
+  let fresh = false;
+  if (!pool.length) {
+    if (S.loop !== 'all') return -1; // everything has played once
+    fresh = true;
+    pool = col.tracks.filter((t) => t.k !== cur);
+    if (!pool.length) pool = col.tracks.slice(); // a playlist of one song
+  }
+  if (!pool.length) return -1;
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  sh.pick = { k: t.k, fresh };
+  return col.tracks.indexOf(t);
+}
+
+function setShuffle(on, { quiet = false } = {}) {
+  S.shuffle = !!on;
+  const btn = $('shuffleBtn');
+  btn.classList.toggle('off', !S.shuffle);
+  btn.setAttribute('aria-pressed', String(S.shuffle));
+  btn.setAttribute('aria-label', `Shuffle: ${S.shuffle ? 'on' : 'off'}`);
+  btn.title = `Shuffle: ${S.shuffle ? 'on' : 'off'}`;
+  shReset(); // starts a fresh round from the song that is playing now
+  if (quiet) return;
+  toast(S.shuffle ? 'Shuffle on' : 'Shuffle off', 'info', { id: 'shuffle' });
+  prefetchNext();
+  save();
+}
+$('shuffleBtn').addEventListener('click', () => setShuffle(!S.shuffle));
 
 // Speed works like a turntable (slower is deeper); pitch shifts on top of it, and "keep the
 // original pitch" cancels the turntable part out. With the "This song" scope both go back to
@@ -204,7 +308,7 @@ fxMenu.addEventListener('click', (e) => {
 document.addEventListener('pointerdown', (e) => {
   if (fxMenu.classList.contains('open') && !e.target.closest('#fxMenu')) showFxMenu(false);
 });
-window.addEventListener('keydown', (e) => e.key === 'Escape' && showFxMenu(false));
+window.addEventListener('keydown', (e) => e.key === 'Escape' && (showFxMenu(false), showRowMenu(false)));
 
 async function clearCache() {
   const freed = await invoke('clear_cache');
@@ -302,6 +406,7 @@ const menubar = new MenuBar($('menubar'), $('dropdown'), () => {
           onPick: setRate,
         },
         '-',
+        { label: 'Shuffle', kbd: 'S', checked: S.shuffle, action: () => $('shuffleBtn').click() },
         { label: 'Mute', kbd: 'M', checked: S.muted, action: () => $('muteBtn').click() },
         { label: 'Even out volume', checked: S.settings.normalize, action: () => setSetting('normalize', !S.settings.normalize) },
       ],
@@ -402,7 +507,7 @@ function save(delay = 700) {
 // ------------------------------------------------------------------ toasts & status
 
 const toasts = new Map();
-function toast(text, kind = 'info', { id, sticky = false, progress, action } = {}) {
+function toast(text, kind = 'info', { id, sticky = false, progress, action, ttl } = {}) {
   let el = id && toasts.get(id);
   if (!el) {
     el = document.createElement('div');
@@ -431,7 +536,7 @@ function toast(text, kind = 'info', { id, sticky = false, progress, action } = {
     el.append(btn);
   }
   clearTimeout(el._t);
-  if (!sticky) el._t = setTimeout(() => dismissToast(el, id), kind === 'error' ? 5200 : 3200);
+  if (!sticky) el._t = setTimeout(() => dismissToast(el, id), ttl ?? (kind === 'error' ? 5200 : 3200));
   return el;
 }
 function dismissToast(el, id) {
@@ -577,10 +682,14 @@ function prepare(track) {
   return preparing.get(track.id);
 }
 
-function prefetchAfter(i) {
+/** Gets the song(s) that will follow ready. Works from the play order, so it has to run again
+ *  whenever that changes (shuffle, a move, a removal, "Play next"). */
+function prefetchNext() {
   const col = current();
-  if (!col) return;
-  for (const k of [i + 1, i + 2]) {
+  if (!col || S.index < 0 || !currentTrack()) return;
+  const ahead = [nextIndex(true)];
+  if (!S.shuffle) ahead.push(S.index + 2);
+  for (const k of ahead) {
     const t = col.tracks[k];
     if (t) {
       prepare(t).catch(() => {});
@@ -626,6 +735,8 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
   S.index = i;
   S.position = start;
   col.lastIndex = i;
+  autoplayIntent = autoplay;
+  shNote(track.k);
   pos = start;
   queue.setCurrent(i);
   save();
@@ -660,7 +771,8 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
     failStreak++;
     setStatus(`Couldn't play this one`, { error: true });
     toast(`Couldn't find “${track.title}” — ${String(e).slice(0, 120)}`, 'error');
-    if (autoplay && failStreak < 3 && col.tracks[i + 1]) setTimeout(() => token === playToken && playIndex(i + 1), 1400);
+    const onward = nextIndex();
+    if (autoplay && failStreak < 3 && onward >= 0) setTimeout(() => token === playToken && playIndex(onward), 1400);
     return;
   }
   if (token !== playToken) return;
@@ -686,7 +798,7 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
     tt.duration = duration;
     tt.setPlaying(true);
     setPlayingUI(true);
-    prefetchAfter(i);
+    prefetchNext();
   } catch (e) {
     prepared.delete(track.id);
     toast(String(e), 'error');
@@ -694,16 +806,27 @@ async function playIndex(i, { autoplay = true, start = 0, transition = 'swap' } 
   }
 }
 
-async function crossfadeTo(i, path, secs) {
+async function crossfadeTo(track, path, secs) {
   const col = current();
-  const track = col.tracks[i];
   const token = ++playToken;
   try {
     const res = await invoke('audio_crossfade', { path, secs });
     if (token !== playToken) return;
     deck = res.deck;
+    // The list may have been edited while this was starting: find the song again.
+    const i = col.tracks.indexOf(track);
+    if (i < 0) {
+      xfStarted = false;
+      invoke('audio_stop');
+      deck = 0;
+      const onward = nextIndex();
+      if (onward >= 0) playIndex(onward);
+      else idle();
+      return;
+    }
     S.index = i;
     col.lastIndex = i;
+    shNote(track.k);
     pos = 0;
     xfStarted = false;
     queue.setCurrent(i);
@@ -718,7 +841,7 @@ async function crossfadeTo(i, path, secs) {
     invoke('media_meta', { title: track.title, artist: track.artist, album: col.name, cover: art, duration }).catch(() => {});
     fmStart(track, col, duration);
     fxNewSong(track);
-    prefetchAfter(i);
+    prefetchNext();
     // The new song is already playing; the turntable catches up with a record swap.
     if (await tt.swap(art)) {
       if (token === playToken && playing) tt.needleDown(duration ? pos / duration : 0);
@@ -736,6 +859,7 @@ function onEnded(id) {
   if (i >= 0) {
     playIndex(i, { transition: i === S.index ? 'none' : 'swap' });
   } else {
+    autoplayIntent = false;
     setPlayingUI(false);
     tt.setPlaying(false);
     tt.toRest();
@@ -748,18 +872,23 @@ function onEnded(id) {
 
 function togglePlay() {
   const track = currentTrack();
-  if (!track) return;
+  if (!track) {
+    if (current()?.tracks.length) playIndex(0); // nothing on the platter (the playing song was removed)
+    return;
+  }
   if (!deck) {
     playIndex(S.index, { start: S.position || 0, transition: tt.hasRecord ? 'none' : 'swap' });
     return;
   }
   if (playing) {
+    autoplayIntent = false;
     invoke('audio_pause');
     tt.setPlaying(false);
     tt.hover();
     setPlayingUI(false);
     save(0);
   } else {
+    autoplayIntent = true;
     invoke('audio_play');
     tt.setPlaying(true);
     tt.lower();
@@ -767,12 +896,13 @@ function togglePlay() {
   }
 }
 
-/** The song after this one, or -1. Only a song ending by itself (`ended`) repeats under "loop song";
+/** The song after this one (in shuffle order when shuffle is on), or -1. Only a song ending by itself (`ended`) repeats under "loop song";
  *  pressing Next still moves on. "Loop playlist" wraps around to the first song. */
 function nextIndex(ended = false) {
   const col = current();
   if (!col || S.index < 0) return -1;
   if (ended && S.loop === 'one') return S.index;
+  if (S.shuffle) return shuffleNext(col);
   if (S.index + 1 < col.tracks.length) return S.index + 1;
   return S.loop === 'all' ? 0 : -1;
 }
@@ -785,6 +915,13 @@ function next() {
 function prev() {
   if (pos > 4 && deck) return seekTo(0);
   const col = current();
+  if (S.shuffle) {
+    // back through what was really played
+    const i = col ? col.tracks.findIndex((t) => t.k === sh.hist[sh.hp - 1]) : -1;
+    if (i >= 0) playIndex(i);
+    else if (deck) seekTo(0);
+    return;
+  }
   if (S.index > 0) playIndex(S.index - 1);
   else if (col && S.loop === 'all') playIndex(col.tracks.length - 1);
 }
@@ -866,7 +1003,7 @@ listen('audio', ({ payload: e }) => {
       const path = prepared.get(nextTrack.id);
       if (path) {
         xfStarted = true;
-        crossfadeTo(ni, path, Math.max(1, remain));
+        crossfadeTo(nextTrack, path, Math.max(1, remain));
       }
     } else if (remain < S.crossfade + 40) {
       prepare(nextTrack).catch(() => {});
@@ -964,6 +1101,7 @@ function removeCollection(id) {
     ++playToken;
     if (deck) invoke('audio_stop');
     deck = 0;
+    autoplayIntent = false;
     S.currentId = null;
     S.index = -1;
     setPlayingUI(false);
@@ -981,10 +1119,161 @@ function openCollection(id, { index = 0, autoplay = true, cascade = true, start 
   if (!col) return;
   S.currentId = id;
   S.index = -1;
-  queue.render(col, index, { cascade });
+  shReset();
   renderShelf();
+  if (!col.tracks.length) {
+    queue.render(col, -1, { cascade });
+    return idle();
+  }
+  index = clamp(index, 0, col.tracks.length - 1); // the saved position can be stale after edits
+  queue.render(col, index, { cascade });
   playIndex(index, { autoplay, start });
 }
+
+/** Nothing is playing and nothing is lined up (the last song was removed, or the list is empty). */
+function idle() {
+  ++playToken;
+  if (deck) invoke('audio_stop');
+  deck = 0;
+  autoplayIntent = false;
+  S.index = -1;
+  S.position = 0;
+  pos = 0;
+  setPlayingUI(false);
+  tt.clear();
+  setStatus('');
+  lyrics.empty();
+  showEmpty('Nothing playing', 'Pick a song from the list');
+  save();
+}
+
+// ------------------------------------------------------------------ editing the queue
+
+/** The list changed: keep the playing song as the current one (by key, not by position). */
+function afterEdit(col, key, { counts = false } = {}) {
+  S.index = key == null ? -1 : col.tracks.findIndex((t) => t.k === key);
+  if (S.index >= 0) col.lastIndex = S.index;
+  sh.pick = null; // the order changed: the song picked to follow may no longer be the right one
+  queue.sync(col, S.index);
+  if (counts) renderShelf();
+  save();
+  prefetchNext(); // and so the next song's audio must be ready, not the old neighbour's
+}
+
+function moveTrack(from, to) {
+  const col = current();
+  if (!col || !col.tracks[from] || to < 0 || to >= col.tracks.length || from === to) return;
+  const key = currentTrack()?.k ?? null;
+  col.tracks.splice(to, 0, col.tracks.splice(from, 1)[0]);
+  afterEdit(col, key);
+}
+
+function removeTrack(i) {
+  const col = current();
+  const track = col?.tracks[i];
+  if (!track) return;
+  const wasCurrent = i === S.index;
+  const wasPlaying = playing || (autoplayIntent && !deck);
+  let onto = null; // the song to move on to when the playing one is removed
+  if (wasCurrent) {
+    const n = nextIndex();
+    if (n >= 0 && n !== i) onto = col.tracks[n].k;
+  }
+  const key = wasCurrent ? null : (currentTrack()?.k ?? null);
+  col.tracks.splice(i, 1);
+  shForget(track.k);
+  if (wasCurrent) {
+    S.index = -1;
+    sh.pick = null;
+    queue.sync(col, -1);
+    renderShelf();
+    const ni = onto ? col.tracks.findIndex((t) => t.k === onto) : -1;
+    if (ni >= 0) playIndex(ni, { autoplay: wasPlaying });
+    else idle();
+  } else afterEdit(col, key, { counts: true });
+  const id = `rm:${track.k}`;
+  toast(`Removed “${track.title}”`, 'info', {
+    id,
+    ttl: 8000,
+    action: {
+      label: 'Undo',
+      run: () => {
+        dismissToast(toasts.get(id), id);
+        restoreTrack(col, track, i, wasCurrent);
+      },
+    },
+  });
+}
+
+function restoreTrack(col, track, at, wasCurrent) {
+  if (!S.library.includes(col) || col.tracks.some((t) => t.k === track.k)) return;
+  col.tracks.splice(Math.min(at, col.tracks.length), 0, track);
+  if (col.id !== S.currentId) {
+    renderShelf();
+    save();
+    return;
+  }
+  afterEdit(col, currentTrack()?.k ?? null, { counts: true });
+  // If removing it had stopped everything, bring it back as the song on the platter.
+  if (wasCurrent && S.index < 0) playIndex(col.tracks.indexOf(track), { autoplay: false });
+}
+
+/** Puts a song directly after the one playing. With shuffle on the list stays as it is and the
+ *  song jumps the shuffle order instead. */
+function playNext(i) {
+  const col = current();
+  const track = col?.tracks[i];
+  if (!track || S.index < 0 || i === S.index) return;
+  if (S.shuffle) {
+    sh.up = [track.k, ...sh.up.filter((k) => k !== track.k)];
+    sh.pick = null;
+    prefetchNext();
+  } else {
+    const key = currentTrack().k;
+    col.tracks.splice(i, 1);
+    col.tracks.splice(col.tracks.findIndex((t) => t.k === key) + 1, 0, track);
+    afterEdit(col, key);
+  }
+  toast(`“${track.title}” plays next`, 'info', { id: 'playnext' });
+}
+
+// Right-click (or press and hold, then let go) a song: Play next, Remove.
+const rowMenu = $('rowMenu');
+let rowMenuKey = null;
+function showRowMenu(on, x = 0, y = 0, touch = false) {
+  if (!on && !rowMenu.classList.contains('open')) return;
+  rowMenu.classList.toggle('open', on);
+  rowMenu.setAttribute('aria-hidden', String(!on));
+  if (!on) return;
+  const a = app.getBoundingClientRect();
+  const w = rowMenu.offsetWidth, h = rowMenu.offsetHeight;
+  rowMenu.style.left = `${clamp(x - a.left - (touch ? w / 2 : 0), 8, a.width - w - 8)}px`;
+  rowMenu.style.top = `${clamp(y - a.top - (touch ? h + 28 : 0), 8, a.height - h - 8)}px`;
+}
+function openRowMenu(i, x, y) {
+  const track = current()?.tracks[i];
+  if (!track) return;
+  closePopovers();
+  showFxMenu(false);
+  rowMenuKey = track.k;
+  rowMenu.querySelector('.ctx-title').textContent = track.title;
+  const alreadyNext = S.shuffle ? sh.up[0] === track.k : i === S.index + 1;
+  rowMenu.querySelector('[data-act="next"]').classList.toggle('disabled', S.index < 0 || i === S.index || alreadyNext);
+  showRowMenu(true, x, y, queue.lastType !== 'mouse');
+}
+rowMenu.addEventListener('click', (e) => {
+  const act = e.target.closest('.mi')?.dataset.act;
+  if (!act) return;
+  showRowMenu(false);
+  const i = current()?.tracks.findIndex((t) => t.k === rowMenuKey) ?? -1;
+  if (i < 0) return;
+  if (act === 'next') playNext(i);
+  else removeTrack(i);
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('#rowMenu')) showRowMenu(false);
+});
+$('queueList').addEventListener('scroll', () => showRowMenu(false), { passive: true });
 
 async function loadFromText(text, point) {
   menubar.close();
@@ -1003,6 +1292,7 @@ async function loadFromText(text, point) {
     return;
   }
   dismissToast(t, 'read');
+  ensureKeys(col);
   const existing = S.library.findIndex((c) => c.id === col.id);
   if (existing >= 0) {
     const old = S.library.splice(existing, 1)[0];
@@ -1014,12 +1304,12 @@ async function loadFromText(text, point) {
   openCollection(col.id, { index: 0, cascade: true });
 }
 
-function showEmpty() {
+function showEmpty(title, sub) {
   app.classList.add('is-empty');
-  setTitle(PLAT.mobile ? 'Share a Spotify playlist' : 'Drop a Spotify playlist');
-  $('sub').textContent = PLAT.mobile
+  setTitle(title || (PLAT.mobile ? 'Share a Spotify playlist' : 'Drop a Spotify playlist'));
+  $('sub').textContent = sub || (PLAT.mobile
     ? 'In Spotify, tap Share → Plouk, or tap + to paste a link'
-    : `Drag it straight out of the Spotify app, or paste a link with ${MOD()}V`;
+    : `Drag it straight out of the Spotify app, or paste a link with ${MOD()}V`);
   showProgress(0, 0);
   applyPalette(null);
   app.style.setProperty('--accent', `rgb(${DEFAULT_PALETTE.accent.join(',')})`);
@@ -1140,6 +1430,7 @@ function renderXf() {
   $('xfRange').style.setProperty('--fill', `${(S.crossfade / 12) * 100}%`);
 }
 function closePopovers(except) {
+  showRowMenu(false);
   document.querySelectorAll('.pop-wrap').forEach((w) => {
     if (w === except) return;
     w.querySelector('.popover').classList.remove('open');
@@ -1225,6 +1516,7 @@ window.addEventListener('keydown', (e) => {
     setVolume(S.volume - 0.05);
   } else if (k === 'm' || k === 'M') $('muteBtn').click();
   else if (k === 'r' || k === 'R') $('loopBtn').click();
+  else if (k === 's' || k === 'S') $('shuffleBtn').click();
   else if (k === '[') setRate(S.rate - 0.05);
   else if (k === ']') setRate(S.rate + 0.05);
   else if (k === '\\') {
@@ -1309,10 +1601,12 @@ async function boot() {
   const saved = await invoke('load_state').catch(() => null);
   if (saved && saved.v === 1) Object.assign(S, saved, { muted: false });
   S.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings || {}) };
+  S.library.forEach(ensureKeys);
   if (S.settings.lite == null) S.settings.lite = !!PLAT.mobile;
   if (S.settings.launchVolume !== 'last') S.volume = S.settings.launchVolume;
   applySettings();
   setLoop(S.loop);
+  setShuffle(S.shuffle, { quiet: true });
   setRate(S.rate || 1);
   setTimeout(checkUpdates, 20000);
   setInterval(checkUpdates, 6 * 3600 * 1000);

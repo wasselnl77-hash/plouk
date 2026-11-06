@@ -754,7 +754,7 @@ svg { display: block; }
   transform: scale(0); transition: transform 0.3s var(--ease-spring);
 }
 #loopBtn[data-loop='one'] .loop-one { transform: none; }
-#loopBtn:not(.off) { color: var(--accent); }
+#loopBtn:not(.off), #shuffleBtn:not(.off) { color: var(--accent); }
 .pop-presets { display: flex; gap: 4px; margin-top: 10px; }
 .popover.wide { width: 272px; }
 .pop-gap { margin-top: 16px; }
@@ -910,6 +910,7 @@ input[type='range']::-webkit-slider-thumb {
   overflow-y: auto;
   padding: 4px 8px 22px;
   perspective: 900px;
+  position: relative;
   mask: linear-gradient(transparent, #000 12px, #000 calc(100% - 34px), transparent);
   -webkit-mask: linear-gradient(transparent, #000 12px, #000 calc(100% - 34px), transparent);
 }
@@ -933,7 +934,14 @@ input[type='range']::-webkit-slider-thumb {
   transform-origin: 50% 0;
   transition: background 0.25s;
 }
+.row { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .row:hover { background: rgba(255, 255, 255, 0.05); }
+.row.held { background: rgba(255, 255, 255, 0.09); }
+.row.dragging, .row.current.dragging { position: relative; z-index: 2; background: rgba(32, 32, 40, 0.96); box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.8), inset 0 0 0 1px var(--stroke-2); transition: none; pointer-events: none; }
+.reordering { cursor: grabbing; }
+.reordering .row:not(.dragging):hover { background: transparent; }
+.drop-line { position: absolute; left: 12px; right: 12px; top: 0; height: 2px; border-radius: 2px; background: var(--accent); pointer-events: none; z-index: 3; }
+.queue-none { padding: 28px 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-3); }
 .row.current { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent); }
 .idx { position: relative; height: 22px; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .idx .play-ico { display: none; color: var(--text); }
@@ -1352,6 +1360,9 @@ kbd {
 .ctx-menu.open { opacity: 1; transform: none; pointer-events: auto; }
 .ctx-menu .mi .check svg { opacity: 0; transition: opacity 0.15s; }
 .ctx-menu .mi.on .check svg { opacity: 1; }
+.row-menu { transform-origin: 0 0; max-width: 280px; }
+.row-menu .ctx-title { max-width: 260px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 700; }
+.row-menu .mi { padding-left: 10px; }
 .ctx-title { padding: 6px 10px 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 .mi {
   display: flex;
@@ -1670,6 +1681,13 @@ kbd {
   .sub { font-size: 14px; }
   .status { margin-top: 4px; }
   .progress, .transport { width: 100%; }
+  /* loop, shuffle, prev/play/next, speed and crossfade all have to fit one row */
+  .controls { gap: 4px; }
+  .controls .ctl:not(.play) { width: 42px; }
+  .side { gap: 6px; }
+  .side.end { gap: 4px; }
+  .transport .chip { padding: 0 8px 0 7px; gap: 5px; }
+  .transport .chip.icon { padding: 0 7px; }
   .vol { display: none; } /* the phone's volume buttons do this */
   .vol-bar { display: none; }
 

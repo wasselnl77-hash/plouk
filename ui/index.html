@@ -47,6 +47,13 @@
     <button class="mi" data-scope="song" role="menuitemradio"><span class="check"><svg viewBox="0 0 16 16" width="13" height="13"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lbl">This song only</span></button>
   </div>
 
+  <!-- Right-click (or press and hold, then let go) a song in the queue -->
+  <div class="ctx-menu row-menu glass" id="rowMenu" role="menu" aria-hidden="true">
+    <div class="ctx-title"></div>
+    <button class="mi" data-act="next" role="menuitem"><span class="lbl">Play next</span></button>
+    <button class="mi danger" data-act="remove" role="menuitem"><span class="lbl">Remove from queue</span></button>
+  </div>
+
   <!-- Library: one sleeve per playlist you have dropped in -->
   <aside class="sidebar glass" id="sidebar">
     <div class="side-head">
@@ -152,6 +159,9 @@
       <button class="chip icon off" id="loopBtn" aria-label="Loop: off">
         <svg viewBox="0 0 24 24"><path d="M17 2.5l3 3-3 3" /><path d="M4 11.5v-1a5 5 0 0 1 5-5h11" /><path d="M7 21.5l-3-3 3-3" /><path d="M20 12.5v1a5 5 0 0 1-5 5H4" /></svg>
         <b class="loop-one">1</b>
+      </button>
+      <button class="chip icon off" id="shuffleBtn" aria-label="Shuffle: off" aria-pressed="false" title="Shuffle: off">
+        <svg viewBox="0 0 24 24"><path d="M3 6.5h3.5l8.6 11h5.4" /><path d="M17.8 14.6l2.8 2.9-2.8 2.9" /><path d="M3 17.5h3.5l1.9-2.4M12 10.5l3.1-4h5.4" /><path d="M17.8 3.6l2.8 2.9-2.8 2.9" /></svg>
       </button>
       </div>
       <div class="controls">
@@ -314,6 +324,7 @@
                 <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
                 <dt><kbd>M</kbd></dt><dd>Mute</dd>
                 <dt><kbd>R</kbd></dt><dd>Loop off / playlist / song</dd>
+                <dt><kbd>S</kbd></dt><dd>Shuffle on / off</dd>
                 <dt><kbd>[</kbd> <kbd>]</kbd> <kbd>\</kbd></dt><dd>Slower / faster / back to normal speed and pitch</dd>
                 <dt><kbd>Q</kbd> <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
                 <dt><kbd>Ctrl</kbd> <kbd>,</kbd></dt><dd>Options</dd>
@@ -386,6 +397,7 @@
         <dt><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next song</dd>
         <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Volume</dd>
         <dt><kbd>M</kbd></dt><dd>Mute</dd>
+        <dt><kbd>S</kbd></dt><dd>Shuffle</dd>
         <dt><kbd>Q</kbd> / <kbd>L</kbd></dt><dd>Queue / lyrics</dd>
         <dt><kbd>Ctrl</kbd> + <kbd>V</kbd></dt><dd>Play a pasted Spotify link</dd>
         <dt><kbd>Ctrl</kbd> + <kbd>,</kbd></dt><dd>Options</dd>

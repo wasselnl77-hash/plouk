@@ -38,8 +38,13 @@ So that's what it is. A turntable, a queue, and not much else.
 - **Even volume.** Every song gets measured once and played at the same
   loudness, so a quiet acoustic track and a loud pop single sit nicely next to
   each other.
-- **Play it your way.** Loop a song or the whole playlist, and slow songs down
-  or speed them up while they play, like a turntable's pitch control.
+- **Play it your way.** Loop a song or the whole playlist, shuffle it (every
+  song plays once before any repeats, and Previous goes back through what you
+  really heard), and slow songs down or speed them up while they play, like a
+  turntable's pitch control.
+- **Your queue, your order.** Drag a song to a new spot (on a phone, press and
+  hold, then drag). Right-click a song, or press and hold and let go, to play
+  it next or remove it; removing has an Undo.
 - **Show it off, if you want.** Plouk can put what you're listening to on your
   Discord profile and scrobble it to Last.fm. Both are off until you turn
   them on.
@@ -83,21 +88,21 @@ Everything is on the [releases page](../../releases).
 **Linux.** On Debian, Ubuntu or Mint, grab the `.deb` and install it:
 
 ```bash
-sudo apt install ./plouk-0.3.3-linux-amd64.deb
+sudo apt install ./plouk-0.3.4-linux-amd64.deb
 ```
 
 On openSUSE or Fedora, grab the `.rpm`. It isn't signed by a repository, so
 openSUSE needs to be told that's okay:
 
 ```bash
-sudo zypper install --allow-unsigned-rpm ./plouk-0.3.3-linux-x86_64.rpm
+sudo zypper install --allow-unsigned-rpm ./plouk-0.3.4-linux-x86_64.rpm
 ```
 
-On Fedora it's `sudo dnf install ./plouk-0.3.3-linux-x86_64.rpm`.
+On Fedora it's `sudo dnf install ./plouk-0.3.4-linux-x86_64.rpm`.
 
 Anywhere else, the `.AppImage` works too: make it executable and run it.
 
-**Windows.** Run `plouk-0.3.3-windows-x64-setup.exe`. The installer isn't
+**Windows.** Run `plouk-0.3.4-windows-x64-setup.exe`. The installer isn't
 signed yet, so Windows SmartScreen may warn you: click **More info**, then
 **Run anyway**. Windows 10 and 11 are supported.
 
@@ -153,6 +158,7 @@ plain HTML, CSS and JavaScript with no build step, in `ui/`.
 | ↑ ↓ | Volume |
 | M | Mute |
 | R | Loop off / playlist / song |
+| S | Shuffle on / off |
 | [ / ] / \\ | Slower / faster / back to normal speed and pitch |
 | Q / L | Queue / lyrics |
 | Ctrl + V | Play a copied Spotify link |
@@ -197,7 +203,10 @@ cargo tauri android build --apk
 ```
 
 Releases build themselves: pushing a `v*` tag makes GitHub Actions build the
-Linux, Mac and Android versions and attach them to the release.
+Linux, Windows, Mac and Android versions and attach them to a draft release.
+Once every build has succeeded it adds `latest.json` and `SHA256SUMS.txt` and
+publishes the release; if a build fails, the release stays a draft and nothing
+public changes.
 
 Want to fiddle with the design without the backend? Serve `ui/` with any
 static file server and open it in a browser. It falls back to a fake player
