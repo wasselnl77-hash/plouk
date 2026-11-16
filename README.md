@@ -216,4 +216,4 @@ with a few demo songs. Add `?mobile` to the address to see the phone layout.
 
 MIT. Do what you like with it, see [LICENSE](LICENSE).
 
-<p align="center"><sub>Made by EHS studio.</sub></p>
+<p align="center"><sub>Made by EHS studio. If you'd like to keep it going: <a href="https://buymeacoffee.com/wassel">buymeacoffee.com/wassel</a></sub></p>
